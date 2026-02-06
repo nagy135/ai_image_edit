@@ -1,0 +1,19 @@
+{
+  "name": "@repo/convex-backend",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "convex dev",
+    "setup": "convex dev --until-success",
+    "typecheck": "tsc --noEmit -p convex",
+    "deploy": "convex deploy",
+    "generate": "convex codegen"
+  },
+  "dependencies": {
+    "@openrouter/sdk": "^0.8.0",
+    "convex": "^1.17.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

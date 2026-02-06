@@ -1,0 +1,9 @@
+{
+  "name": "@repo/docker",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "docker compose -f ../../docker-compose.yml up",
+    "admin-key": "docker compose -f ../../docker-compose.yml exec backend ./generate_admin_key.sh"
+  }
+}
