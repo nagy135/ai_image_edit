@@ -1,15 +1,29 @@
 import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
 // Get all images for a specific chain, ordered by step number
 export const list = query({
   args: { chainId: v.id("imageChains") },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const images = await ctx.db
       .query("images")
       .withIndex("by_chain", (q) => q.eq("chainId", args.chainId))
       .order("asc")
       .collect();
+
+    return await Promise.all(
+      images.map(async (img) => ({
+        ...img,
+        url: await ctx.storage.getUrl(img.storageId),
+      }))
+    );
   },
 });
 
@@ -18,7 +32,12 @@ export const getActiveChain = query({
   args: {},
   handler: async (ctx) => {
     const chains = await ctx.db.query("imageChains").order("desc").take(1);
-    return chains[0] || null;
+    const chain = chains[0];
+    if (!chain) return null;
+    return {
+      ...chain,
+      originalUrl: await ctx.storage.getUrl(chain.originalStorageId),
+    };
   },
 });
 
@@ -26,7 +45,14 @@ export const getActiveChain = query({
 export const listChains = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("imageChains").order("desc").collect();
+    const chains = await ctx.db.query("imageChains").order("desc").collect();
+
+    return await Promise.all(
+      chains.map(async (c) => ({
+        ...c,
+        originalUrl: await ctx.storage.getUrl(c.originalStorageId),
+      }))
+    );
   },
 });
 
@@ -34,7 +60,12 @@ export const listChains = query({
 export const getChain = query({
   args: { chainId: v.id("imageChains") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.chainId);
+    const chain = await ctx.db.get(args.chainId);
+    if (!chain) return null;
+    return {
+      ...chain,
+      originalUrl: await ctx.storage.getUrl(chain.originalStorageId),
+    };
   },
 });
 
@@ -42,7 +73,7 @@ export const getChain = query({
 export const createChain = mutation({
   args: {
     name: v.string(),
-    imagePath: v.string(),
+    originalStorageId: v.id("_storage"),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -50,14 +81,14 @@ export const createChain = mutation({
     // Create the chain
     const chainId = await ctx.db.insert("imageChains", {
       name: args.name,
-      originalImagePath: args.imagePath,
+      originalStorageId: args.originalStorageId,
       createdAt: now,
     });
     
     // Add the original image as step 0
     await ctx.db.insert("images", {
       chainId,
-      imagePath: args.imagePath,
+      storageId: args.originalStorageId,
       prompt: "", // no prompt for the original
       stepNumber: 0,
       createdAt: now,
@@ -71,14 +102,14 @@ export const createChain = mutation({
 export const addImage = internalMutation({
   args: {
     chainId: v.id("imageChains"),
-    imagePath: v.string(),
+    storageId: v.id("_storage"),
     prompt: v.string(),
     stepNumber: v.number(),
   },
   handler: async (ctx, args) => {
     const imageId = await ctx.db.insert("images", {
       chainId: args.chainId,
-      imagePath: args.imagePath,
+      storageId: args.storageId,
       prompt: args.prompt,
       stepNumber: args.stepNumber,
       createdAt: Date.now(),
@@ -92,14 +123,14 @@ export const addImage = internalMutation({
 export const addEditedImage = mutation({
   args: {
     chainId: v.id("imageChains"),
-    imagePath: v.string(),
+    storageId: v.id("_storage"),
     prompt: v.string(),
     stepNumber: v.number(),
   },
   handler: async (ctx, args) => {
     const imageId = await ctx.db.insert("images", {
       chainId: args.chainId,
-      imagePath: args.imagePath,
+      storageId: args.storageId,
       prompt: args.prompt,
       stepNumber: args.stepNumber,
       createdAt: Date.now(),

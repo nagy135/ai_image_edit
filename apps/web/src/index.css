@@ -1,1 +1,101 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --app-bg-0: #070a0f;
+    --app-bg-1: #0b1220;
+    --app-ink: rgba(240, 247, 255, 0.92);
+    --app-muted: rgba(240, 247, 255, 0.68);
+    --app-faint: rgba(240, 247, 255, 0.42);
+    --app-border: rgba(255, 255, 255, 0.10);
+    --app-card: rgba(255, 255, 255, 0.06);
+    --app-card-2: rgba(255, 255, 255, 0.08);
+    --app-accent: #2dd4bf;
+    --app-accent-2: #a3e635;
+    --app-warn: #fb7185;
+    --font-body: "Instrument Sans", ui-sans-serif, system-ui, -apple-system,
+      Segoe UI, sans-serif;
+    --font-display: "Sora", ui-sans-serif, system-ui, -apple-system, Segoe UI,
+      sans-serif;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    color: var(--app-ink);
+    font-family: var(--font-body);
+    background-color: var(--app-bg-0);
+    background-image:
+      radial-gradient(900px 600px at 18% 12%, rgba(45, 212, 191, 0.16), transparent 55%),
+      radial-gradient(900px 700px at 82% 18%, rgba(163, 230, 53, 0.14), transparent 60%),
+      radial-gradient(1200px 900px at 50% 92%, rgba(251, 113, 133, 0.10), transparent 60%),
+      linear-gradient(180deg, rgba(11, 18, 32, 1), rgba(7, 10, 15, 1));
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 64px 64px;
+    opacity: 0.10;
+    mask-image: radial-gradient(closest-side at 50% 30%, black 30%, transparent 78%);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer utilities {
+  .app-card {
+    background: var(--app-card);
+    border: 1px solid var(--app-border);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.38);
+    backdrop-filter: blur(14px);
+  }
+
+  .app-card-2 {
+    background: var(--app-card-2);
+    border: 1px solid var(--app-border);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.32);
+    backdrop-filter: blur(16px);
+  }
+
+  .app-badge {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .app-focus {
+    outline: none;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.10),
+      0 0 0 4px rgba(45, 212, 191, 0.24);
+  }
+
+  .app-anim-in {
+    animation: appFadeIn 380ms ease-out both;
+  }
+
+  @keyframes appFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
