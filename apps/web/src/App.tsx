@@ -66,6 +66,13 @@ type ChainDoc = Doc<"imageChains">;
 type ImageWithUrl = ImageDoc & { url: string | null };
 type ChainWithUrl = ChainDoc & { originalUrl: string | null };
 
+const appShellStyle = {
+  backgroundColor: "var(--app-bg-0)",
+  backgroundImage:
+    "radial-gradient(900px 600px at 18% 12%, rgba(45, 212, 191, 0.16), transparent 55%), radial-gradient(900px 700px at 82% 18%, rgba(163, 230, 53, 0.14), transparent 60%), linear-gradient(180deg, rgba(11, 18, 32, 1), rgba(7, 10, 15, 1))",
+  backgroundAttachment: "scroll",
+} as const;
+
 function App() {
   const [currentChainId, setCurrentChainId] =
     useState<Id<"imageChains"> | null>(null);
@@ -284,7 +291,7 @@ function App() {
   // No image mode / Upload mode
   if (showUpload || !currentChainId || !images || images.length === 0) {
     return (
-      <div className="min-h-screen px-6 py-10">
+      <div className="min-h-screen px-6 py-10" style={appShellStyle}>
         <div className="mx-auto max-w-6xl app-anim-in">
           <header className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -429,7 +436,10 @@ function App() {
   );
 
   return (
-    <div className="min-h-screen px-3 py-4 lg:px-6 lg:py-8">
+    <div
+      className="min-h-screen px-3 py-4 lg:px-6 lg:py-8"
+      style={appShellStyle}
+    >
       <div className="mx-auto max-w-6xl app-anim-in">
         <header className="flex flex-wrap items-center justify-between gap-2 lg:gap-4">
           <div className="flex items-center gap-2 lg:gap-3">
