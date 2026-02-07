@@ -46,6 +46,15 @@ function App() {
     }
   }, [images?.length]);
 
+  // When the selected image changes, reflect its stored adjustment values.
+  useEffect(() => {
+    if (!images || images.length === 0) return;
+    const img = images[selectedImageIndex];
+    if (!img) return;
+    setZoomLevel(img.zoomPercent ?? 100);
+    setBrightnessLevel(img.brightnessPercent ?? 100);
+  }, [images, selectedImageIndex]);
+
   const handleFileSelect = async (file: File) => {
     setIsUploading(true);
     try {
@@ -109,44 +118,63 @@ function App() {
   };
 
   // Generic function for generating images with a prompt
-  const generateImage = async (prompt: string) => {
+  const generateImage = async (
+    prompt: string,
+    nextZoomPercent?: number,
+    nextBrightnessPercent?: number
+  ) => {
     if (!currentChainId || !images || images.length === 0) return;
 
     setIsGenerating(true);
     try {
+      const sourceImage = images[selectedImageIndex] ?? images[images.length - 1];
+      if (!sourceImage) return;
+
+      const zoomPercent = nextZoomPercent ?? sourceImage.zoomPercent ?? 100;
+      const brightnessPercent = nextBrightnessPercent ?? sourceImage.brightnessPercent ?? 100;
+
       await generateNextStep({
         chainId: currentChainId,
+        sourceImageId: sourceImage._id,
         prompt,
+        zoomPercent,
+        brightnessPercent,
       });
     } catch (error) {
       console.error("Error generating image:", error);
       alert("Failed to generate image: " + (error as Error).message);
     } finally {
       setIsGenerating(false);
-      // Reset sliders after generation
-      setZoomLevel(100);
-      setBrightnessLevel(100);
     }
   };
 
   const handleCenterClick = async () => {
-    await generateImage("Center the main object in the image");
+    const source = images?.[selectedImageIndex];
+    await generateImage(
+      "Center the main object in the image",
+      source?.zoomPercent ?? zoomLevel,
+      source?.brightnessPercent ?? brightnessLevel
+    );
   };
 
   const handleZoomRelease = async (value: number) => {
-    if (value === 100) return; // No change
-    const direction = value > 100 ? "in" : "out";
-    const amount = Math.abs(value - 100);
-    const prompt = `Zoom ${direction} on the image by ${amount}%. Keep the same subject and style.`;
-    await generateImage(prompt);
+    const base = images?.[selectedImageIndex]?.zoomPercent ?? 100;
+    if (value === base) return;
+    const direction = value > base ? "in" : "out";
+    const amount = Math.abs(value - base);
+    const prompt = `Adjust the zoom ${direction} by about ${amount}%. Target zoom ${value}% (100% = original framing). Keep the same subject and style.`;
+    const brightness = images?.[selectedImageIndex]?.brightnessPercent ?? 100;
+    await generateImage(prompt, value, brightness);
   };
 
   const handleBrightnessRelease = async (value: number) => {
-    if (value === 100) return; // No change
-    const direction = value > 100 ? "brighter" : "darker";
-    const amount = Math.abs(value - 100);
-    const prompt = `Make the image ${amount}% ${direction}. Adjust the overall brightness/exposure while keeping the same subject and composition.`;
-    await generateImage(prompt);
+    const base = images?.[selectedImageIndex]?.brightnessPercent ?? 100;
+    if (value === base) return;
+    const direction = value > base ? "brighter" : "darker";
+    const amount = Math.abs(value - base);
+    const prompt = `Make the image about ${amount}% ${direction}. Target brightness ${value}% (100% = original). Adjust overall brightness/exposure while keeping the same subject and composition.`;
+    const zoom = images?.[selectedImageIndex]?.zoomPercent ?? 100;
+    await generateImage(prompt, zoom, value);
   };
 
   const handleSelectChain = (chainId: Id<"imageChains">) => {
@@ -190,9 +218,9 @@ function App() {
               </div>
 
               <div
-                className={`relative mt-6 rounded-3xl border border-dashed border-white/15 bg-white/5 p-10 text-center transition-colors ${
-                  uploadDisabled ? "opacity-60 pointer-events-none" : "hover:bg-white/10 cursor-pointer"
-                }`}
+                  className={`relative mt-6 rounded-3xl border border-dashed border-white/15 bg-white/5 p-10 text-center transition-colors cursor-pointer ${
+                    uploadDisabled ? "opacity-60 pointer-events-none" : "hover:bg-white/10"
+                  }`}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
@@ -247,7 +275,7 @@ function App() {
                       type="button"
                       disabled={uploadDisabled}
                       onClick={() => handleSelectChain(c._id)}
-                      className="group text-left rounded-2xl border border-white/10 bg-white/5 overflow-hidden transition disabled:opacity-60 disabled:cursor-not-allowed hover:border-white/20 hover:bg-white/10"
+                      className="group text-left rounded-2xl border border-white/10 bg-white/5 overflow-hidden transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed hover:border-white/20 hover:bg-white/10"
                     >
                       <div className="aspect-square bg-black/20">
                         <img
@@ -307,7 +335,7 @@ function App() {
               type="button"
               onClick={handleNewImage}
               disabled={controlsDisabled}
-              className="rounded-full px-4 py-2 text-sm font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              className="rounded-full px-4 py-2 text-sm font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               New project
             </button>
@@ -347,6 +375,12 @@ function App() {
                   <span className="app-badge rounded-full px-3 py-1 text-xs text-[color:var(--app-muted)]">
                     Latest step {latestStepNumber}
                   </span>
+                  <span className="app-badge rounded-full px-3 py-1 text-xs text-[color:var(--app-muted)]">
+                    Zoom {currentImage.zoomPercent ?? 100}%
+                  </span>
+                  <span className="app-badge rounded-full px-3 py-1 text-xs text-[color:var(--app-muted)]">
+                    Brightness {currentImage.brightnessPercent ?? 100}%
+                  </span>
                 </div>
                 <div className="text-xs text-[color:var(--app-faint)] break-words max-w-full lg:max-w-[64ch]">
                   {currentImage.prompt ? `“${currentImage.prompt}”` : "No prompt for this step"}
@@ -374,7 +408,7 @@ function App() {
                         if (controlsDisabled) return;
                         setSelectedImageIndex(index);
                       }}
-                      className={`group flex-shrink-0 text-left transition disabled:opacity-60 disabled:cursor-not-allowed ${
+                      className={`group flex-shrink-0 text-left transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
                         isSelected ? "" : "opacity-75 hover:opacity-100"
                       }`}
                     >
@@ -441,7 +475,7 @@ function App() {
                   type="button"
                   onClick={handleCenterClick}
                   disabled={controlsDisabled}
-                  className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 shadow-[0_18px_40px_rgba(45,212,191,0.16)]"
+                  className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 shadow-[0_18px_40px_rgba(45,212,191,0.16)]"
                 >
                   {isGenerating ? "Generating..." : "Center"}
                 </button>

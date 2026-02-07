@@ -91,6 +91,8 @@ export const createChain = mutation({
       storageId: args.originalStorageId,
       prompt: "", // no prompt for the original
       stepNumber: 0,
+      zoomPercent: 100,
+      brightnessPercent: 100,
       createdAt: now,
     });
     
@@ -105,6 +107,8 @@ export const addImage = internalMutation({
     storageId: v.id("_storage"),
     prompt: v.string(),
     stepNumber: v.number(),
+    zoomPercent: v.number(),
+    brightnessPercent: v.number(),
   },
   handler: async (ctx, args) => {
     const imageId = await ctx.db.insert("images", {
@@ -112,6 +116,8 @@ export const addImage = internalMutation({
       storageId: args.storageId,
       prompt: args.prompt,
       stepNumber: args.stepNumber,
+      zoomPercent: args.zoomPercent,
+      brightnessPercent: args.brightnessPercent,
       createdAt: Date.now(),
     });
     
@@ -126,6 +132,8 @@ export const addEditedImage = mutation({
     storageId: v.id("_storage"),
     prompt: v.string(),
     stepNumber: v.number(),
+    zoomPercent: v.number(),
+    brightnessPercent: v.number(),
   },
   handler: async (ctx, args) => {
     const imageId = await ctx.db.insert("images", {
@@ -133,6 +141,8 @@ export const addEditedImage = mutation({
       storageId: args.storageId,
       prompt: args.prompt,
       stepNumber: args.stepNumber,
+      zoomPercent: args.zoomPercent,
+      brightnessPercent: args.brightnessPercent,
       createdAt: Date.now(),
     });
     
@@ -156,5 +166,12 @@ export const internalList = internalQuery({
       .withIndex("by_chain", (q) => q.eq("chainId", args.chainId))
       .order("asc")
       .collect();
+  },
+});
+
+export const internalGetImage = internalQuery({
+  args: { imageId: v.id("images") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.imageId);
   },
 });

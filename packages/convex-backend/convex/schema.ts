@@ -13,6 +13,8 @@ export default defineSchema({
     storageId: v.id("_storage"),
     prompt: v.string(),
     stepNumber: v.number(),
+    zoomPercent: v.number(),
+    brightnessPercent: v.number(),
     createdAt: v.number(),
   }).index("by_chain", ["chainId", "stepNumber"]),
 });

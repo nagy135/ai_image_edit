@@ -21,7 +21,7 @@ const blobToDataUrl = async (blob: Blob): Promise<string> => {
 };
 
 const parseBase64DataUrl = (
-  dataUrl: string
+  dataUrl: string,
 ): { mimeType: string; arrayBuffer: ArrayBuffer } => {
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!match) {
@@ -32,7 +32,7 @@ const parseBase64DataUrl = (
   const bytes = Buffer.from(base64Data, "base64");
   const arrayBuffer = bytes.buffer.slice(
     bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength
+    bytes.byteOffset + bytes.byteLength,
   ) as ArrayBuffer;
   return { mimeType, arrayBuffer };
 };
@@ -41,11 +41,14 @@ const parseBase64DataUrl = (
 export const generateNextStep = action({
   args: {
     chainId: v.id("imageChains"),
+    sourceImageId: v.id("images"),
     prompt: v.string(),
+    zoomPercent: v.optional(v.number()),
+    brightnessPercent: v.optional(v.number()),
   },
   handler: async (
     ctx,
-    args
+    args,
   ): Promise<{
     stepNumber: number;
     storageId: Doc<"images">["storageId"];
@@ -68,17 +71,31 @@ export const generateNextStep = action({
       throw new Error("No images in chain");
     }
 
-    const sortedImages = images.sort((a, b) => b.stepNumber - a.stepNumber);
-    const latestImage = sortedImages[0];
+    const latestStepNumber = images.reduce(
+      (max, img) => Math.max(max, img.stepNumber),
+      0,
+    );
+    const nextStepNumber = latestStepNumber + 1;
+
+    const sourceImage = (await ctx.runQuery(internal.images.internalGetImage, {
+      imageId: args.sourceImageId,
+    })) as Doc<"images"> | null;
+
+    if (!sourceImage) {
+      throw new Error("Source image not found");
+    }
+
+    if (sourceImage.chainId !== args.chainId) {
+      throw new Error("Source image does not belong to chain");
+    }
+
     const originalImage = images.find((img) => img.stepNumber === 0);
 
     if (!originalImage) {
       throw new Error("Original image not found");
     }
 
-    const nextStepNumber = latestImage.stepNumber + 1;
-
-    const currentBlob = await ctx.storage.get(latestImage.storageId);
+    const currentBlob = await ctx.storage.get(sourceImage.storageId);
     if (!currentBlob) {
       throw new Error("Current image not found in storage");
     }
@@ -87,7 +104,7 @@ export const generateNextStep = action({
 
     let originalImageBase64: string | undefined;
     // Include original for steps 2+
-    if (latestImage.stepNumber > 0) {
+    if (sourceImage.stepNumber > 0) {
       const originalBlob = await ctx.storage.get(originalImage.storageId);
       if (!originalBlob) {
         throw new Error("Original image not found in storage");
@@ -100,11 +117,11 @@ export const generateNextStep = action({
     if (!apiKey) {
       throw new Error("OPENROUTER_API_KEY environment variable not set");
     }
-    
+
     const openRouter = new OpenRouter({
       apiKey,
     });
-    
+
     // Build the message content
     const messageContent: any[] = [
       {
@@ -118,7 +135,7 @@ export const generateNextStep = action({
         },
       },
     ];
-    
+
     // Add original image for steps 2+
     if (originalImageBase64) {
       messageContent.push({
@@ -132,7 +149,7 @@ export const generateNextStep = action({
         },
       });
     }
-    
+
     // Call OpenRouter
     const result = await openRouter.chat.send({
       chatGenerationParams: {
@@ -147,24 +164,24 @@ export const generateNextStep = action({
         stream: false,
       },
     });
-    
+
     // Extract the generated image
     if (!result.choices || result.choices.length === 0) {
       throw new Error("No response from OpenRouter");
     }
-    
+
     const message = result.choices[0].message;
     if (!message.images || message.images.length === 0) {
       throw new Error("No image in response");
     }
-    
+
     const generatedImage = message.images[0];
     const imageDataUrl = generatedImage.imageUrl.url; // Base64 data URL
 
     // Store image in Convex file storage
     const { mimeType, arrayBuffer } = parseBase64DataUrl(imageDataUrl);
     const storedId = await ctx.storage.store(
-      new Blob([arrayBuffer], { type: mimeType })
+      new Blob([arrayBuffer], { type: mimeType }),
     );
 
     // Append step in DB
@@ -173,6 +190,9 @@ export const generateNextStep = action({
       storageId: storedId,
       prompt: args.prompt,
       stepNumber: nextStepNumber,
+      zoomPercent: args.zoomPercent ?? sourceImage.zoomPercent ?? 100,
+      brightnessPercent:
+        args.brightnessPercent ?? sourceImage.brightnessPercent ?? 100,
     });
 
     return {

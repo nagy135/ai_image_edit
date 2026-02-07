@@ -47,9 +47,9 @@ export function EditSlider({
   };
 
   return (
-    <div className="flex flex-col gap-2 w-full max-w-xs">
-      <div className="flex justify-between items-center">
-        <label className="text-sm font-medium text-gray-300">{label}</label>
+     <div className="flex flex-col gap-2 w-full max-w-xs">
+       <div className="flex justify-between items-center">
+         <label className="text-sm font-medium text-gray-300 cursor-pointer">{label}</label>
         <span className="text-sm text-gray-400 tabular-nums">{value}%</span>
       </div>
       <input
