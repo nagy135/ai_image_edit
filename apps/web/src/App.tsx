@@ -3,7 +3,7 @@ import { api } from "@repo/convex-backend/convex/_generated/api";
 import { useState, useRef, useEffect } from "react";
 import type { Doc, Id } from "@repo/convex-backend/convex/_generated/dataModel";
 import { EditSlider } from "./components/EditSlider";
-import { Focus, Sparkles } from "lucide-react";
+import { Focus, PencilLine, Sparkles } from "lucide-react";
 
 // Reusable button components for tools
 interface QuickToolButtonProps {
@@ -61,6 +61,30 @@ function MakeOldButton({
   );
 }
 
+function ManualButton({
+  onClick,
+  disabled,
+  isGenerating,
+  size = "regular",
+}: QuickToolButtonProps) {
+  const isCompact = size === "compact";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex items-center justify-center transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 font-semibold ${
+        isCompact
+          ? "gap-1.5 rounded-xl px-2 py-2 text-xs"
+          : "gap-2 rounded-2xl px-4 py-3 text-sm shadow-[0_18px_40px_rgba(56,189,248,0.16)]"
+      }`}
+    >
+      <PencilLine className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
+      {isGenerating ? (isCompact ? "..." : "Generating...") : "Manual"}
+    </button>
+  );
+}
+
 type ImageDoc = Doc<"images">;
 type ChainDoc = Doc<"imageChains">;
 type ImageWithUrl = ImageDoc & { url: string | null };
@@ -99,6 +123,8 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isManualOpen, setIsManualOpen] = useState(false);
+  const [manualPrompt, setManualPrompt] = useState("");
 
   // Slider states
   const [zoomLevel, setZoomLevel] = useState(100);
@@ -286,6 +312,19 @@ function App() {
        source?.zoomPercent ?? zoomLevel,
        source?.brightnessPercent ?? brightnessLevel,
      );
+   };
+
+   const handleManualSubmit = async () => {
+     const nextPrompt = manualPrompt.trim();
+     if (!nextPrompt) return;
+     const source = images?.[selectedImageIndex];
+     await generateImage(
+       nextPrompt,
+       source?.zoomPercent ?? zoomLevel,
+       source?.brightnessPercent ?? brightnessLevel,
+     );
+     setManualPrompt("");
+     setIsManualOpen(false);
    };
 
   // No image mode / Upload mode
@@ -588,6 +627,12 @@ function App() {
                     isGenerating={isGenerating}
                     size="compact"
                   />
+                  <ManualButton
+                    onClick={() => setIsManualOpen(true)}
+                    disabled={controlsDisabled}
+                    isGenerating={isGenerating}
+                    size="compact"
+                  />
                 </div>
               </div>
             </section>
@@ -725,10 +770,64 @@ function App() {
                   disabled={controlsDisabled}
                   isGenerating={isGenerating}
                 />
+                <ManualButton
+                  onClick={() => setIsManualOpen(true)}
+                  disabled={controlsDisabled}
+                  isGenerating={isGenerating}
+                />
               </div>
             </section>
           </aside>
         </main>
+
+        {isManualOpen && (
+          <div className="fixed inset-0 z-50 grid place-items-center px-4">
+            <div
+              className="absolute inset-0 bg-black/60"
+              onClick={() => setIsManualOpen(false)}
+            />
+            <div className="relative w-full max-w-lg app-card rounded-3xl p-5 lg:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base lg:text-lg font-semibold">Manual edit</h2>
+                  <p className="text-xs lg:text-sm text-[color:var(--app-muted)]">
+                    Describe the change you want to apply.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsManualOpen(false)}
+                  className="rounded-full px-3 py-1.5 text-xs font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <textarea
+                  value={manualPrompt}
+                  onChange={(e) => setManualPrompt(e.target.value)}
+                  placeholder="e.g., Remove the background and make the sky a soft sunrise gradient"
+                  rows={5}
+                  className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/90 placeholder:text-white/40 focus:outline-none focus:ring-0 app-focus"
+                />
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[10px] lg:text-xs text-[color:var(--app-faint)]">
+                    Tip: Be specific about the subject, style, and constraints.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleManualSubmit}
+                    disabled={controlsDisabled || manualPrompt.trim().length === 0}
+                    className="rounded-full px-4 py-2 text-xs lg:text-sm font-semibold bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isGenerating ? "Generating..." : "Apply manual edit"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
