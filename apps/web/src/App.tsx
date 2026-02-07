@@ -6,6 +6,8 @@ import { EditSlider } from "./components/EditSlider";
 import {
   AlignLeft,
   AlignRight,
+  ArrowDownRight,
+  ArrowRight,
   Focus,
   Image as ImageIcon,
   PencilLine,
@@ -86,6 +88,93 @@ type ImageWithUrl = ImageDoc & { url: string | null };
 type ChainWithUrl = ChainDoc & { originalUrl: string | null };
 type EditType = ImageDoc["editType"];
 
+type HistoryNode = {
+  image: ImageWithUrl;
+  children: HistoryNode[];
+};
+
+type HistoryRow = {
+  path: HistoryNode[];
+  visibleFromDepth: number;
+  branchDepth: number;
+};
+
+type HistoryLayout = {
+  rows: HistoryRow[];
+  maxDepth: number;
+};
+
+const buildHistoryLayout = (images: ImageWithUrl[]): HistoryLayout => {
+  const nodeMap = new Map<Id<"images">, HistoryNode>();
+  for (const image of images) {
+    nodeMap.set(image._id, { image, children: [] });
+  }
+
+  let root: HistoryNode | null = null;
+
+  for (const node of nodeMap.values()) {
+    const parentId = node.image.parentImageId;
+    if (parentId && nodeMap.has(parentId)) {
+      nodeMap.get(parentId)?.children.push(node);
+    } else if (!root || node.image.stepNumber === 0) {
+      root = node;
+    }
+  }
+
+  for (const node of nodeMap.values()) {
+    node.children.sort((a, b) => {
+      if (a.image.stepNumber !== b.image.stepNumber) {
+        return a.image.stepNumber - b.image.stepNumber;
+      }
+      return a.image.createdAt - b.image.createdAt;
+    });
+  }
+
+  if (!root) {
+    root = nodeMap.values().next().value ?? null;
+  }
+
+  const paths: HistoryNode[][] = [];
+  const walk = (node: HistoryNode, path: HistoryNode[]) => {
+    const nextPath = [...path, node];
+    if (node.children.length === 0) {
+      paths.push(nextPath);
+      return;
+    }
+    for (const child of node.children) {
+      walk(child, nextPath);
+    }
+  };
+
+  if (root) {
+    walk(root, []);
+  }
+
+  const maxDepth = paths.reduce((max, row) => Math.max(max, row.length), 0);
+  let previousPath: HistoryNode[] | null = null;
+  const rows: HistoryRow[] = paths.map((path) => {
+    let visibleFromDepth = 0;
+    if (previousPath) {
+      const maxCommon = Math.min(path.length, previousPath.length);
+      while (
+        visibleFromDepth < maxCommon &&
+        path[visibleFromDepth]?.image._id ===
+          previousPath[visibleFromDepth]?.image._id
+      ) {
+        visibleFromDepth += 1;
+      }
+    }
+    previousPath = path;
+    return {
+      path,
+      visibleFromDepth,
+      branchDepth: visibleFromDepth,
+    };
+  });
+
+  return { rows, maxDepth };
+};
+
 const appShellStyle = {
   backgroundColor: "var(--app-bg-0)",
   backgroundImage:
@@ -117,7 +206,9 @@ function App() {
 
   const [isUploading, setIsUploading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
+  const [selectedImageId, setSelectedImageId] = useState<Id<"images"> | null>(
+    null,
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [manualPrompt, setManualPrompt] = useState("");
   const [isBatchMode, setIsBatchMode] = useState(false);
@@ -132,21 +223,31 @@ function App() {
   const controlsDisabled = isGenerating;
   const uploadDisabled = isUploading;
 
-  // When images change, select the latest one
+  // When images change, select the latest one if needed
   useEffect(() => {
-    if (images && images.length > 0) {
-      setSelectedImageIndex(images.length - 1);
-    }
-  }, [images?.length]);
+    if (!images || images.length === 0) return;
+    setSelectedImageId((prev) => {
+      if (prev && images.some((img) => img._id === prev)) return prev;
+      const latest = images.reduce((best, img) =>
+        img.stepNumber >= best.stepNumber ? img : best,
+      );
+      return latest._id;
+    });
+  }, [images]);
 
   // When the selected image changes, reflect its stored adjustment values.
   useEffect(() => {
     if (!images || images.length === 0) return;
-    const img = images[selectedImageIndex];
+    const img =
+      (selectedImageId &&
+        images.find((image) => image._id === selectedImageId)) ??
+      images.reduce((best, image) =>
+        image.stepNumber >= best.stepNumber ? image : best,
+      );
     if (!img) return;
     setZoomLevel(img.zoomPercent ?? 100);
     setBrightnessLevel(img.brightnessPercent ?? 100);
-  }, [images, selectedImageIndex]);
+  }, [images, selectedImageId]);
 
   const handleFileSelect = async (file: File) => {
     setIsUploading(true);
@@ -173,7 +274,7 @@ function App() {
 
       setCurrentChainId(chainId);
       setShowUpload(false);
-      setSelectedImageIndex(0);
+      setSelectedImageId(null);
     } catch (error) {
       console.error("Error uploading image:", error);
       alert("Failed to upload image");
@@ -204,10 +305,21 @@ function App() {
     return `${url}${url.includes("?") ? "&" : "?"}t=${timestamp}`;
   };
 
+  const getSelectedImage = () => {
+    if (!images || images.length === 0) return null;
+    if (selectedImageId) {
+      const selected = images.find((img) => img._id === selectedImageId);
+      if (selected) return selected;
+    }
+    return images.reduce((best, img) =>
+      img.stepNumber >= best.stepNumber ? img : best,
+    );
+  };
+
   const handleNewImage = () => {
     setCurrentChainId(null);
     setShowUpload(true);
-    setSelectedImageIndex(0);
+    setSelectedImageId(null);
   };
 
   const handleDeleteLastStep = async () => {
@@ -252,8 +364,7 @@ function App() {
     setActivePrompt(prompt);
     setIsGenerating(true);
     try {
-      const sourceImage =
-        images[selectedImageIndex] ?? images[images.length - 1];
+      const sourceImage = getSelectedImage();
       if (!sourceImage) return;
 
       const zoomPercent = nextZoomPercent ?? sourceImage.zoomPercent ?? 100;
@@ -268,6 +379,7 @@ function App() {
         zoomPercent,
         brightnessPercent,
       });
+      setSelectedImageId(null);
     } catch (error) {
       console.error("Error generating image:", error);
       alert("Failed to generate image: " + (error as Error).message);
@@ -291,7 +403,7 @@ function App() {
 
   const handleCenterClick = async () => {
     const prompt = "Center the main object in the image";
-    const source = images?.[selectedImageIndex];
+    const source = getSelectedImage();
     if (isBatchMode) {
       enqueuePrompt(prompt);
       return;
@@ -306,7 +418,7 @@ function App() {
 
   const handleAlignLeftClick = async () => {
     const prompt = "Place the main object on the left side of the photo";
-    const source = images?.[selectedImageIndex];
+    const source = getSelectedImage();
     if (isBatchMode) {
       enqueuePrompt(prompt);
       return;
@@ -321,7 +433,7 @@ function App() {
 
   const handleAlignRightClick = async () => {
     const prompt = "Place the main object on the right side of the photo";
-    const source = images?.[selectedImageIndex];
+    const source = getSelectedImage();
     if (isBatchMode) {
       enqueuePrompt(prompt);
       return;
@@ -335,10 +447,10 @@ function App() {
   };
 
   const handleZoomRelease = async (value: number) => {
-    const base = images?.[selectedImageIndex]?.zoomPercent ?? 100;
+    const base = getSelectedImage()?.zoomPercent ?? 100;
     if (value === base) return;
     const prompt = buildZoomPrompt(value, base);
-    const brightness = images?.[selectedImageIndex]?.brightnessPercent ?? 100;
+    const brightness = getSelectedImage()?.brightnessPercent ?? 100;
     if (isBatchMode) {
       enqueuePrompt(prompt);
       return;
@@ -347,10 +459,10 @@ function App() {
   };
 
   const handleBrightnessRelease = async (value: number) => {
-    const base = images?.[selectedImageIndex]?.brightnessPercent ?? 100;
+    const base = getSelectedImage()?.brightnessPercent ?? 100;
     if (value === base) return;
     const prompt = buildBrightnessPrompt(value, base);
-    const zoom = images?.[selectedImageIndex]?.zoomPercent ?? 100;
+    const zoom = getSelectedImage()?.zoomPercent ?? 100;
     if (isBatchMode) {
       enqueuePrompt(prompt);
       return;
@@ -361,13 +473,13 @@ function App() {
   const handleSelectChain = (chainId: Id<"imageChains">) => {
     setCurrentChainId(chainId);
     setShowUpload(false);
-    setSelectedImageIndex(0);
+    setSelectedImageId(null);
   };
 
   const handleMakeOlder = async () => {
     const prompt =
       "Make everyone and everything in this photo look noticeably older. Add wrinkles, age spots, graying hair, aged appearance to any people. Show aging effects on objects and surroundings as well.";
-    const source = images?.[selectedImageIndex];
+    const source = getSelectedImage();
     if (isBatchMode) {
       enqueuePrompt(prompt);
       return;
@@ -388,7 +500,7 @@ function App() {
       setManualPrompt("");
       return;
     }
-    const source = images?.[selectedImageIndex];
+    const source = getSelectedImage();
     await generateImage(
       nextPrompt,
       "manual",
@@ -401,7 +513,7 @@ function App() {
   const handleBatchGenerate = async () => {
     if (!pendingPrompts.length) return;
     const combinedPrompt = pendingPrompts.join(" ");
-    const source = images?.[selectedImageIndex];
+    const source = getSelectedImage();
     await generateImage(
       combinedPrompt,
       "manual",
@@ -548,15 +660,14 @@ function App() {
   }
 
   // Edit mode
-  const safeSelectedImageIndex = Math.min(
-    selectedImageIndex,
-    Math.max(0, images.length - 1),
+  const currentImage = getSelectedImage();
+  if (!currentImage) {
+    return null;
+  }
+  const latestImage = images.reduce((best, img) =>
+    img.stepNumber >= best.stepNumber ? img : best,
   );
-  const currentImage = images[safeSelectedImageIndex];
-  const latestStepNumber = images.reduce(
-    (max, img) => Math.max(max, img.stepNumber),
-    0,
-  );
+  const latestStepNumber = latestImage.stepNumber;
 
   const editTypeIconMap: Record<string, { icon: typeof Focus; label: string }> =
     {
@@ -570,6 +681,19 @@ function App() {
       brightness: { icon: Sun, label: "Brightness" },
       unknown: { icon: Wand2, label: "Edit" },
     };
+
+  const historyLayout = buildHistoryLayout(images);
+  const historyRows = historyLayout.rows.length
+    ? historyLayout.rows
+    : [
+        {
+          path: [{ image: currentImage, children: [] }],
+          visibleFromDepth: 0,
+          branchDepth: 0,
+        },
+      ];
+  const historyColumns = Math.max(1, historyLayout.maxDepth);
+  const selectedHistoryId = selectedImageId ?? currentImage._id;
 
   return (
     <div
@@ -730,8 +854,7 @@ function App() {
                       value={zoomLevel}
                       onChange={(e) => setZoomLevel(Number(e.target.value))}
                       onPointerUp={() => {
-                        const base =
-                          images?.[selectedImageIndex]?.zoomPercent ?? 100;
+                        const base = getSelectedImage()?.zoomPercent ?? 100;
                         if (zoomLevel !== base) handleZoomRelease(zoomLevel);
                       }}
                       disabled={controlsDisabled}
@@ -760,8 +883,7 @@ function App() {
                       }
                       onPointerUp={() => {
                         const base =
-                          images?.[selectedImageIndex]?.brightnessPercent ??
-                          100;
+                          getSelectedImage()?.brightnessPercent ?? 100;
                         if (brightnessLevel !== base)
                           handleBrightnessRelease(brightnessLevel);
                       }}
@@ -850,93 +972,148 @@ function App() {
                 </span>
               </div>
 
-              <div className="mt-2 lg:mt-4 flex gap-2 lg:gap-3 overflow-x-auto pb-1 lg:pb-2">
-                {images.map((image, index) => {
-                  const isSelected = safeSelectedImageIndex === index;
-                  const isOriginal = image.stepNumber === 0;
-                  const isLast = index === images.length - 1;
-                  const canDelete =
-                    (isOriginal && images.length >= 1) ||
-                    (isLast && !isOriginal);
-
-                  const editType = image.editType ?? "unknown";
-                  const meta =
-                    editTypeIconMap[editType] ?? editTypeIconMap.unknown;
-                  const Icon = meta.icon;
-
-                  const deleteTitle = isOriginal
-                    ? "Delete original (reset project)"
-                    : "Delete last step";
-
-                  return (
+              <div className="mt-2 lg:mt-4 overflow-x-auto pb-1 lg:pb-2">
+                <div className="flex flex-col gap-3 min-w-max">
+                  {historyRows.map((row, rowIndex) => (
                     <div
-                      key={image._id}
-                      className={`group flex-shrink-0 text-left transition ${
-                        isSelected ? "" : "opacity-75 hover:opacity-100"
-                      }`}
+                      key={`history-row-${rowIndex}`}
+                      className="flex items-center gap-2 lg:gap-3"
                     >
-                      <div className="relative">
-                        <button
-                          type="button"
-                          disabled={controlsDisabled}
-                          onClick={() => {
-                            if (controlsDisabled) return;
-                            setSelectedImageIndex(index);
-                          }}
-                          className={`block w-14 h-14 sm:w-16 sm:h-16 lg:w-24 lg:h-24 rounded-xl lg:rounded-2xl overflow-hidden border transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
-                            isSelected
-                              ? "border-teal-300/70 shadow-[0_0_0_2px_rgba(45,212,191,0.18)] lg:shadow-[0_0_0_3px_rgba(45,212,191,0.18)]"
-                              : "border-white/10"
-                          }`}
-                        >
-                          <img
-                            src={getImageUrl(image.url ?? "", image.createdAt)}
-                            alt={`Step ${image.stepNumber}`}
-                            className="w-full h-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                          />
-                          <div className="absolute left-1 top-1 lg:left-2 lg:top-2 app-badge rounded-full px-1.5 py-0.5 lg:px-2 text-[8px] lg:text-[10px] text-[color:var(--app-muted)]">
-                            {image.stepNumber}
-                          </div>
-                          <div
-                            title={meta.label}
-                            className="absolute right-1 top-1 lg:right-2 lg:top-2 h-5 w-5 lg:h-7 lg:w-7 rounded-full border border-white/15 bg-black/60 backdrop-blur grid place-items-center text-white/90"
-                          >
-                            <Icon className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-                          </div>
-                        </button>
+                      {Array.from({ length: historyColumns }).map(
+                        (_, depth) => {
+                          const node = row.path[depth];
+                          const nextNode = row.path[depth + 1];
+                          const image = node?.image;
+                          const visibleImage =
+                            depth >= row.visibleFromDepth ? image : undefined;
+                          const showNode = !!visibleImage;
+                          const isSelected =
+                            visibleImage?._id === selectedHistoryId;
+                          const isOriginal = image?.stepNumber === 0;
+                          const isLast = image?._id === latestImage._id;
+                          const canDelete =
+                            showNode &&
+                            ((isOriginal && images.length >= 1) ||
+                              (isLast && !isOriginal));
+                          const deleteTitle = isOriginal
+                            ? "Delete original (reset project)"
+                            : "Delete last step";
 
-                        {canDelete && (
-                          <button
-                            type="button"
-                            disabled={controlsDisabled}
-                            title={deleteTitle}
-                            aria-label={deleteTitle}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (isOriginal) {
-                                handleDeleteChain();
-                              } else {
-                                handleDeleteLastStep();
-                              }
-                            }}
-                            className="absolute -right-1 -top-1 lg:-right-2 lg:-top-2 h-5 w-5 lg:h-7 lg:w-7 rounded-full border border-white/15 bg-black/60 backdrop-blur grid place-items-center text-xs lg:text-sm font-semibold text-white transition hover:bg-black/80 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                          >
-                            x
-                          </button>
-                        )}
-                      </div>
+                          const editType =
+                            nextNode?.image.editType ?? "unknown";
+                          const meta =
+                            editTypeIconMap[editType] ??
+                            editTypeIconMap.unknown;
+                          const EditIcon = meta.icon;
+                          const isBranchJoin =
+                            row.branchDepth > 0 &&
+                            depth + 1 === row.branchDepth;
+                          const shouldShowArrow =
+                            !!image &&
+                            !!nextNode &&
+                            depth + 1 >= row.visibleFromDepth;
+                          const ArrowIcon = isBranchJoin
+                            ? ArrowDownRight
+                            : ArrowRight;
 
-                      <div className="mt-1 lg:mt-2 text-[10px] lg:text-xs text-[color:var(--app-muted)]">
-                        {isOriginal
-                          ? "Orig"
-                          : isLast
-                            ? "Last"
-                            : `#${image.stepNumber}`}
-                      </div>
+                          return (
+                            <div
+                              key={`history-cell-${rowIndex}-${depth}`}
+                              className="contents"
+                            >
+                              <div className="flex flex-col items-start">
+                                <div className="relative">
+                                  {visibleImage ? (
+                                    <button
+                                      type="button"
+                                      disabled={controlsDisabled}
+                                      onClick={() => {
+                                        if (controlsDisabled) return;
+                                        setSelectedImageId(visibleImage._id);
+                                      }}
+                                      className={`group block w-14 h-14 sm:w-16 sm:h-16 lg:w-24 lg:h-24 rounded-xl lg:rounded-2xl overflow-hidden border transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                                        isSelected
+                                          ? "border-teal-300/70 shadow-[0_0_0_2px_rgba(45,212,191,0.18)] lg:shadow-[0_0_0_3px_rgba(45,212,191,0.18)]"
+                                          : "border-white/10"
+                                      }`}
+                                    >
+                                      <img
+                                        src={getImageUrl(
+                                          visibleImage.url ?? "",
+                                          visibleImage.createdAt,
+                                        )}
+                                        alt={`Step ${visibleImage.stepNumber}`}
+                                        className="w-full h-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                                      />
+                                      <div className="absolute left-1 top-1 lg:left-2 lg:top-2 app-badge rounded-full px-1.5 py-0.5 lg:px-2 text-[8px] lg:text-[10px] text-[color:var(--app-muted)]">
+                                        {visibleImage.stepNumber}
+                                      </div>
+                                    </button>
+                                  ) : (
+                                    <div className="w-14 h-14 sm:w-16 sm:h-16 lg:w-24 lg:h-24 opacity-0 pointer-events-none" />
+                                  )}
+
+                                  {showNode && canDelete && (
+                                    <button
+                                      type="button"
+                                      disabled={controlsDisabled}
+                                      title={deleteTitle}
+                                      aria-label={deleteTitle}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (isOriginal) {
+                                          handleDeleteChain();
+                                        } else {
+                                          handleDeleteLastStep();
+                                        }
+                                      }}
+                                      className="absolute -right-1 -top-1 lg:-right-2 lg:-top-2 h-5 w-5 lg:h-7 lg:w-7 rounded-full border border-white/15 bg-black/60 backdrop-blur grid place-items-center text-xs lg:text-sm font-semibold text-white transition hover:bg-black/80 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                                    >
+                                      x
+                                    </button>
+                                  )}
+                                </div>
+
+                                {visibleImage ? (
+                                  <div className="mt-1 lg:mt-2 w-full flex items-center justify-between gap-1">
+                                    <div className="justify-center text-[10px] lg:text-xs text-[color:var(--app-muted)]">
+                                      {isOriginal
+                                        ? "Original"
+                                        : isLast
+                                          ? "Last"
+                                          : `#${visibleImage.stepNumber}`}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="mt-1 lg:mt-2 h-5 lg:h-6" />
+                                )}
+                              </div>
+
+                              {depth < historyColumns - 1 && (
+                                <div className="flex items-center justify-center w-7 sm:w-9 lg:w-12">
+                                  {shouldShowArrow ? (
+                                    <div className="flex items-center gap-1 text-[color:var(--app-faint)]">
+                                      <ArrowIcon className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
+                                      <div
+                                        title={meta.label}
+                                        className="h-5 w-5 lg:h-6 lg:w-6 rounded-full border border-white/15 bg-black/60 backdrop-blur grid place-items-center text-white/90"
+                                      >
+                                        <EditIcon className="h-3 w-3 lg:h-3.5 lg:w-3.5" />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="h-5 w-5 lg:h-6 lg:w-6" />
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        },
+                      )}
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
             </section>
           </div>

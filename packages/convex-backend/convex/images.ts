@@ -120,6 +120,7 @@ export const addImage = internalMutation({
     storageId: v.id("_storage"),
     prompt: v.string(),
     editType: editTypeValidator,
+    parentImageId: v.id("images"),
     stepNumber: v.number(),
     zoomPercent: v.number(),
     brightnessPercent: v.number(),
@@ -127,6 +128,7 @@ export const addImage = internalMutation({
   handler: async (ctx, args) => {
     const imageId = await ctx.db.insert("images", {
       chainId: args.chainId,
+      parentImageId: args.parentImageId,
       storageId: args.storageId,
       prompt: args.prompt,
       editType: args.editType,
@@ -147,6 +149,7 @@ export const addEditedImage = mutation({
     storageId: v.id("_storage"),
     prompt: v.string(),
     editType: editTypeValidator,
+    parentImageId: v.id("images"),
     stepNumber: v.number(),
     zoomPercent: v.number(),
     brightnessPercent: v.number(),
@@ -154,6 +157,7 @@ export const addEditedImage = mutation({
   handler: async (ctx, args) => {
     const imageId = await ctx.db.insert("images", {
       chainId: args.chainId,
+      parentImageId: args.parentImageId,
       storageId: args.storageId,
       prompt: args.prompt,
       editType: args.editType,

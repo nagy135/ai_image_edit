@@ -38,7 +38,7 @@ const parseBase64DataUrl = (
 };
 
 const SYSTEM_PROMPT = `
-You are an AI image editor. Your task is to edit the latest image (if its present, first generation doesnt have it) with the prompt but keep close to original image.
+You are an AI image editor. Your task is to edit the selected image (if its present, first generation doesnt have it) with the prompt but keep close to original image.
 Keep the same subject and style unless specified otherwise in the prompt.
 If there are people in the image, make sure they are the same as in original image.
 Zoom (value 0-200): 100 = original framing, 0 = zoomed out so that main object is half the original size, 200 = zoomed in so that object is twice as big
@@ -112,14 +112,14 @@ export const generateNextStep = action({
       throw new Error("Original image not found");
     }
 
-    const lastImage = images.reduce((prev, cur) =>
+    const latestImage = images.reduce((prev, cur) =>
       cur.stepNumber >= prev.stepNumber ? cur : prev,
     );
-    const latestStepNumber = lastImage.stepNumber;
+    const latestStepNumber = latestImage.stepNumber;
     const nextStepNumber = latestStepNumber + 1;
 
-    // We still validate that the provided sourceImageId belongs to the chain,
-    // but we always generate using the last image in the chain.
+    // Validate that the provided sourceImageId belongs to the chain,
+    // and use it as the parent image for branching.
     const requestedSource = (await ctx.runQuery(
       internal.images.internalGetImage,
       {
@@ -135,8 +135,9 @@ export const generateNextStep = action({
       throw new Error("Source image does not belong to chain");
     }
 
-    const includeLastImage = latestStepNumber >= 1;
-    const primaryImage = includeLastImage ? lastImage : originalImage;
+    const parentImage = requestedSource;
+    const includeParentImage = parentImage.stepNumber >= 1;
+    const primaryImage = parentImage;
 
     const currentBlob = await ctx.storage.get(primaryImage.storageId);
     if (!currentBlob) {
@@ -146,7 +147,7 @@ export const generateNextStep = action({
     const currentImageBase64 = await blobToDataUrl(currentBlob);
 
     let originalImageBase64: string | undefined;
-    if (includeLastImage) {
+    if (includeParentImage) {
       const originalBlob = await ctx.storage.get(originalImage.storageId);
       if (!originalBlob) {
         throw new Error("Original image not found in storage");
@@ -167,7 +168,7 @@ export const generateNextStep = action({
     // Build the message content
     // Content ordering requirement:
     // - First generation: original_image, prompt
-    // - Subsequent generations: original_image, last_image_in_chain, prompt
+    // - Subsequent generations: original_image, parent_image, prompt
     const messageContent: any[] = [];
 
     messageContent.push({
@@ -181,10 +182,10 @@ export const generateNextStep = action({
       },
     });
 
-    if (includeLastImage) {
+    if (includeParentImage) {
       messageContent.push({
         type: "text",
-        text: "Latest image in the chain (apply edits to this):",
+        text: "Selected image (apply edits to this):",
       });
       messageContent.push({
         type: "image_url",
@@ -238,6 +239,7 @@ export const generateNextStep = action({
     // Append step in DB
     await ctx.runMutation(internal.images.addImage, {
       chainId: args.chainId,
+      parentImageId: args.sourceImageId,
       storageId: storedId,
       prompt: args.prompt,
       editType: args.editType,

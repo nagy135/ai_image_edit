@@ -10,6 +10,7 @@ export default defineSchema({
   
   images: defineTable({
     chainId: v.id("imageChains"),
+    parentImageId: v.optional(v.id("images")),
     storageId: v.id("_storage"),
     prompt: v.string(),
     editType: v.optional(
@@ -29,5 +30,7 @@ export default defineSchema({
     zoomPercent: v.number(),
     brightnessPercent: v.number(),
     createdAt: v.number(),
-  }).index("by_chain", ["chainId", "stepNumber"]),
+  })
+    .index("by_chain", ["chainId", "stepNumber"])
+    .index("by_chain_parent", ["chainId", "parentImageId"]),
 });
