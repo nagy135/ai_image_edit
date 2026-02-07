@@ -175,3 +175,70 @@ export const internalGetImage = internalQuery({
     return await ctx.db.get(args.imageId);
   },
 });
+
+// Delete the most recent (highest stepNumber) image in a chain.
+// Step 0 (original) cannot be deleted via this mutation.
+export const deleteLastStep = mutation({
+  args: { chainId: v.id("imageChains") },
+  handler: async (ctx, args) => {
+    const images = await ctx.db
+      .query("images")
+      .withIndex("by_chain", (q) => q.eq("chainId", args.chainId))
+      .order("asc")
+      .collect();
+
+    if (images.length <= 1) {
+      throw new Error("No edited steps to delete");
+    }
+
+    const last = images[images.length - 1];
+    if (!last || last.stepNumber === 0) {
+      throw new Error("Cannot delete original image");
+    }
+
+    await ctx.db.delete(last._id);
+    try {
+      await ctx.storage.delete(last.storageId);
+    } catch {
+      // Ignore storage deletion errors (e.g. already deleted)
+    }
+
+    return { deletedImageId: last._id, deletedStepNumber: last.stepNumber };
+  },
+});
+
+// Delete a chain and all of its images (including the original), then remove
+// the associated storage objects.
+export const deleteChain = mutation({
+  args: { chainId: v.id("imageChains") },
+  handler: async (ctx, args) => {
+    const chain = await ctx.db.get(args.chainId);
+    if (!chain) return { deleted: false };
+
+    const images = await ctx.db
+      .query("images")
+      .withIndex("by_chain", (q) => q.eq("chainId", args.chainId))
+      .order("asc")
+      .collect();
+
+    const storageIds = new Set<typeof chain.originalStorageId>();
+    storageIds.add(chain.originalStorageId);
+    for (const img of images) storageIds.add(img.storageId);
+
+    for (const img of images) {
+      await ctx.db.delete(img._id);
+    }
+
+    await ctx.db.delete(args.chainId);
+
+    for (const storageId of storageIds) {
+      try {
+        await ctx.storage.delete(storageId);
+      } catch {
+        // Ignore storage deletion errors (e.g. already deleted)
+      }
+    }
+
+    return { deleted: true };
+  },
+});

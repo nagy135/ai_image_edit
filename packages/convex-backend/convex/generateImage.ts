@@ -71,31 +71,36 @@ export const generateNextStep = action({
       throw new Error("No images in chain");
     }
 
-    const latestStepNumber = images.reduce(
-      (max, img) => Math.max(max, img.stepNumber),
-      0,
-    );
-    const nextStepNumber = latestStepNumber + 1;
-
-    const sourceImage = (await ctx.runQuery(internal.images.internalGetImage, {
-      imageId: args.sourceImageId,
-    })) as Doc<"images"> | null;
-
-    if (!sourceImage) {
-      throw new Error("Source image not found");
-    }
-
-    if (sourceImage.chainId !== args.chainId) {
-      throw new Error("Source image does not belong to chain");
-    }
-
     const originalImage = images.find((img) => img.stepNumber === 0);
 
     if (!originalImage) {
       throw new Error("Original image not found");
     }
 
-    const currentBlob = await ctx.storage.get(sourceImage.storageId);
+    const lastImage = images.reduce((prev, cur) =>
+      cur.stepNumber >= prev.stepNumber ? cur : prev,
+    );
+    const latestStepNumber = lastImage.stepNumber;
+    const nextStepNumber = latestStepNumber + 1;
+
+    // We still validate that the provided sourceImageId belongs to the chain,
+    // but we always generate using the last image in the chain.
+    const requestedSource = (await ctx.runQuery(internal.images.internalGetImage, {
+      imageId: args.sourceImageId,
+    })) as Doc<"images"> | null;
+
+    if (!requestedSource) {
+      throw new Error("Source image not found");
+    }
+
+    if (requestedSource.chainId !== args.chainId) {
+      throw new Error("Source image does not belong to chain");
+    }
+
+    const includeLastImage = latestStepNumber >= 1;
+    const primaryImage = includeLastImage ? lastImage : originalImage;
+
+    const currentBlob = await ctx.storage.get(primaryImage.storageId);
     if (!currentBlob) {
       throw new Error("Current image not found in storage");
     }
@@ -103,8 +108,7 @@ export const generateNextStep = action({
     const currentImageBase64 = await blobToDataUrl(currentBlob);
 
     let originalImageBase64: string | undefined;
-    // Include original for steps 2+
-    if (sourceImage.stepNumber > 0) {
+    if (includeLastImage) {
       const originalBlob = await ctx.storage.get(originalImage.storageId);
       if (!originalBlob) {
         throw new Error("Original image not found in storage");
@@ -123,32 +127,39 @@ export const generateNextStep = action({
     });
 
     // Build the message content
-    const messageContent: any[] = [
-      {
-        type: "text",
-        text: args.prompt,
+    // Content ordering requirement:
+    // - First generation: original_image, prompt
+    // - Subsequent generations: original_image, last_image_in_chain, prompt
+    const messageContent: any[] = [];
+
+    messageContent.push({
+      type: "text",
+      text: "Original image:",
+    });
+    messageContent.push({
+      type: "image_url",
+      imageUrl: {
+        url: originalImageBase64 ?? currentImageBase64,
       },
-      {
+    });
+
+    if (includeLastImage) {
+      messageContent.push({
+        type: "text",
+        text: "Latest image in the chain (apply edits to this):",
+      });
+      messageContent.push({
         type: "image_url",
         imageUrl: {
           url: currentImageBase64,
         },
-      },
-    ];
-
-    // Add original image for steps 2+
-    if (originalImageBase64) {
-      messageContent.push({
-        type: "text",
-        text: "Here is the original image for reference (to avoid deviation):",
-      });
-      messageContent.push({
-        type: "image_url",
-        imageUrl: {
-          url: originalImageBase64,
-        },
       });
     }
+
+    messageContent.push({
+      type: "text",
+      text: args.prompt,
+    });
 
     // Call OpenRouter
     const result = await openRouter.chat.send({
@@ -190,9 +201,9 @@ export const generateNextStep = action({
       storageId: storedId,
       prompt: args.prompt,
       stepNumber: nextStepNumber,
-      zoomPercent: args.zoomPercent ?? sourceImage.zoomPercent ?? 100,
+      zoomPercent: args.zoomPercent ?? primaryImage.zoomPercent ?? 100,
       brightnessPercent:
-        args.brightnessPercent ?? sourceImage.brightnessPercent ?? 100,
+        args.brightnessPercent ?? primaryImage.brightnessPercent ?? 100,
     });
 
     return {

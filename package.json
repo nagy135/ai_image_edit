@@ -19,5 +19,8 @@
   "devDependencies": {
     "turbo": "^2.3.4"
   },
-  "packageManager": "bun@1.1.42"
+  "packageManager": "bun@1.1.42",
+  "dependencies": {
+    "lucide-react": "^0.563.0"
+  }
 }
