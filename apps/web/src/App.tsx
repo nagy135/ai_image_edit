@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import type { Doc, Id } from "@repo/convex-backend/convex/_generated/dataModel";
 import { EditSlider } from "./components/EditSlider";
 import {
+  AlignLeft,
+  AlignRight,
   Focus,
   Image as ImageIcon,
   PencilLine,
@@ -21,26 +23,35 @@ interface QuickToolButtonProps {
   size?: "compact" | "regular";
 }
 
-function CenterButton({
+interface PositionButtonProps extends QuickToolButtonProps {
+  label: string;
+  toneClassName: string;
+  icon: typeof Focus;
+}
+
+function PositionButton({
   onClick,
   disabled,
   isGenerating,
   size = "regular",
-}: QuickToolButtonProps) {
+  label,
+  toneClassName,
+  icon: Icon,
+}: PositionButtonProps) {
   const isCompact = size === "compact";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-center justify-center transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 font-semibold ${
+      className={`flex items-center justify-center w-full transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed text-black font-semibold ${toneClassName} ${
         isCompact
           ? "gap-1.5 rounded-xl px-2 py-2 text-xs"
           : "gap-2 rounded-2xl px-4 py-3 text-sm shadow-[0_18px_40px_rgba(45,212,191,0.16)]"
       }`}
     >
-      <Focus className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
-      {isGenerating ? (isCompact ? "..." : "Generating...") : "Center"}
+      <Icon className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
+      {isGenerating ? (isCompact ? "..." : "Generating...") : label}
     </button>
   );
 }
@@ -65,30 +76,6 @@ function MakeOldButton({
     >
       <Sparkles className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
       {isGenerating ? (isCompact ? "..." : "Generating...") : "Make old"}
-    </button>
-  );
-}
-
-function ManualButton({
-  onClick,
-  disabled,
-  isGenerating,
-  size = "regular",
-}: QuickToolButtonProps) {
-  const isCompact = size === "compact";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex items-center justify-center transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 font-semibold ${
-        isCompact
-          ? "gap-1.5 rounded-xl px-2 py-2 text-xs"
-          : "gap-2 rounded-2xl px-4 py-3 text-sm shadow-[0_18px_40px_rgba(56,189,248,0.16)]"
-      }`}
-    >
-      <PencilLine className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
-      {isGenerating ? (isCompact ? "..." : "Generating...") : "Manual"}
     </button>
   );
 }
@@ -132,8 +119,10 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isManualOpen, setIsManualOpen] = useState(false);
   const [manualPrompt, setManualPrompt] = useState("");
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [pendingPrompts, setPendingPrompts] = useState<string[]>([]);
+  const [activePrompt, setActivePrompt] = useState<string>("");
 
   // Slider states
   const [zoomLevel, setZoomLevel] = useState(100);
@@ -246,6 +235,11 @@ function App() {
     }
   };
 
+  const enqueuePrompt = (prompt: string) => {
+    if (!prompt.trim()) return;
+    setPendingPrompts((prev) => [...prev, prompt.trim()]);
+  };
+
   // Generic function for generating images with a prompt
   const generateImage = async (
     prompt: string,
@@ -255,6 +249,7 @@ function App() {
   ) => {
     if (!currentChainId || !images || images.length === 0) return;
 
+    setActivePrompt(prompt);
     setIsGenerating(true);
     try {
       const sourceImage =
@@ -278,14 +273,62 @@ function App() {
       alert("Failed to generate image: " + (error as Error).message);
     } finally {
       setIsGenerating(false);
+      setActivePrompt("");
     }
   };
 
+  const buildZoomPrompt = (value: number, base: number) => {
+    const direction = value > base ? "in" : "out";
+    const amount = Math.abs(value - base);
+    return `Adjust the zoom ${direction} by about ${amount}%. Target zoom ${value}% (100% = original framing).`;
+  };
+
+  const buildBrightnessPrompt = (value: number, base: number) => {
+    const direction = value > base ? "brighter" : "darker";
+    const amount = Math.abs(value - base);
+    return `Make the image about ${amount}% ${direction}. Target brightness ${value}% (100% = original). Adjust overall brightness/exposure while keeping the same subject and composition.`;
+  };
+
   const handleCenterClick = async () => {
+    const prompt = "Center the main object in the image";
     const source = images?.[selectedImageIndex];
+    if (isBatchMode) {
+      enqueuePrompt(prompt);
+      return;
+    }
     await generateImage(
-      "Center the main object in the image",
+      prompt,
       "center",
+      source?.zoomPercent ?? zoomLevel,
+      source?.brightnessPercent ?? brightnessLevel,
+    );
+  };
+
+  const handleAlignLeftClick = async () => {
+    const prompt = "Place the main object on the left side of the photo";
+    const source = images?.[selectedImageIndex];
+    if (isBatchMode) {
+      enqueuePrompt(prompt);
+      return;
+    }
+    await generateImage(
+      prompt,
+      "align_left",
+      source?.zoomPercent ?? zoomLevel,
+      source?.brightnessPercent ?? brightnessLevel,
+    );
+  };
+
+  const handleAlignRightClick = async () => {
+    const prompt = "Place the main object on the right side of the photo";
+    const source = images?.[selectedImageIndex];
+    if (isBatchMode) {
+      enqueuePrompt(prompt);
+      return;
+    }
+    await generateImage(
+      prompt,
+      "align_right",
       source?.zoomPercent ?? zoomLevel,
       source?.brightnessPercent ?? brightnessLevel,
     );
@@ -294,52 +337,79 @@ function App() {
   const handleZoomRelease = async (value: number) => {
     const base = images?.[selectedImageIndex]?.zoomPercent ?? 100;
     if (value === base) return;
-    const direction = value > base ? "in" : "out";
-    const amount = Math.abs(value - base);
-    const prompt = `Adjust the zoom ${direction} by about ${amount}%. Target zoom ${value}% (100% = original framing). Keep the same subject and style.`;
+    const prompt = buildZoomPrompt(value, base);
     const brightness = images?.[selectedImageIndex]?.brightnessPercent ?? 100;
+    if (isBatchMode) {
+      enqueuePrompt(prompt);
+      return;
+    }
     await generateImage(prompt, "zoom", value, brightness);
   };
 
   const handleBrightnessRelease = async (value: number) => {
     const base = images?.[selectedImageIndex]?.brightnessPercent ?? 100;
     if (value === base) return;
-    const direction = value > base ? "brighter" : "darker";
-    const amount = Math.abs(value - base);
-    const prompt = `Make the image about ${amount}% ${direction}. Target brightness ${value}% (100% = original). Adjust overall brightness/exposure while keeping the same subject and composition.`;
+    const prompt = buildBrightnessPrompt(value, base);
     const zoom = images?.[selectedImageIndex]?.zoomPercent ?? 100;
+    if (isBatchMode) {
+      enqueuePrompt(prompt);
+      return;
+    }
     await generateImage(prompt, "brightness", zoom, value);
   };
 
-   const handleSelectChain = (chainId: Id<"imageChains">) => {
-     setCurrentChainId(chainId);
-     setShowUpload(false);
-     setSelectedImageIndex(0);
-   };
+  const handleSelectChain = (chainId: Id<"imageChains">) => {
+    setCurrentChainId(chainId);
+    setShowUpload(false);
+    setSelectedImageIndex(0);
+  };
 
-   const handleMakeOlder = async () => {
-     const source = images?.[selectedImageIndex];
-      await generateImage(
-        "Make everyone and everything in this photo look noticeably older. Add wrinkles, age spots, graying hair, aged appearance to any people. Show aging effects on objects and surroundings as well.",
-        "make_old",
-        source?.zoomPercent ?? zoomLevel,
-        source?.brightnessPercent ?? brightnessLevel,
-      );
-    };
+  const handleMakeOlder = async () => {
+    const prompt =
+      "Make everyone and everything in this photo look noticeably older. Add wrinkles, age spots, graying hair, aged appearance to any people. Show aging effects on objects and surroundings as well.";
+    const source = images?.[selectedImageIndex];
+    if (isBatchMode) {
+      enqueuePrompt(prompt);
+      return;
+    }
+    await generateImage(
+      prompt,
+      "make_old",
+      source?.zoomPercent ?? zoomLevel,
+      source?.brightnessPercent ?? brightnessLevel,
+    );
+  };
 
-   const handleManualSubmit = async () => {
-     const nextPrompt = manualPrompt.trim();
-     if (!nextPrompt) return;
-     const source = images?.[selectedImageIndex];
-     await generateImage(
-       nextPrompt,
-       "manual",
-       source?.zoomPercent ?? zoomLevel,
-       source?.brightnessPercent ?? brightnessLevel,
-     );
-     setManualPrompt("");
-     setIsManualOpen(false);
-   };
+  const handleManualSubmit = async () => {
+    const nextPrompt = manualPrompt.trim();
+    if (!nextPrompt) return;
+    if (isBatchMode) {
+      enqueuePrompt(nextPrompt);
+      setManualPrompt("");
+      return;
+    }
+    const source = images?.[selectedImageIndex];
+    await generateImage(
+      nextPrompt,
+      "manual",
+      source?.zoomPercent ?? zoomLevel,
+      source?.brightnessPercent ?? brightnessLevel,
+    );
+    setManualPrompt("");
+  };
+
+  const handleBatchGenerate = async () => {
+    if (!pendingPrompts.length) return;
+    const combinedPrompt = pendingPrompts.join(" ");
+    const source = images?.[selectedImageIndex];
+    await generateImage(
+      combinedPrompt,
+      "manual",
+      source?.zoomPercent ?? zoomLevel,
+      source?.brightnessPercent ?? brightnessLevel,
+    );
+    setPendingPrompts([]);
+  };
 
   // No image mode / Upload mode
   if (showUpload || !currentChainId || !images || images.length === 0) {
@@ -488,15 +558,18 @@ function App() {
     0,
   );
 
-  const editTypeIconMap: Record<string, { icon: typeof Focus; label: string }> = {
-    original: { icon: ImageIcon, label: "Original" },
-    center: { icon: Focus, label: "Center" },
-    make_old: { icon: Sparkles, label: "Make old" },
-    manual: { icon: PencilLine, label: "Manual" },
-    zoom: { icon: ZoomIn, label: "Zoom" },
-    brightness: { icon: Sun, label: "Brightness" },
-    unknown: { icon: Wand2, label: "Edit" },
-  };
+  const editTypeIconMap: Record<string, { icon: typeof Focus; label: string }> =
+    {
+      original: { icon: ImageIcon, label: "Original" },
+      align_left: { icon: AlignLeft, label: "Align left" },
+      align_right: { icon: AlignRight, label: "Align right" },
+      center: { icon: Focus, label: "Center" },
+      make_old: { icon: Sparkles, label: "Make old" },
+      manual: { icon: PencilLine, label: "Manual" },
+      zoom: { icon: ZoomIn, label: "Zoom" },
+      brightness: { icon: Sun, label: "Brightness" },
+      unknown: { icon: Wand2, label: "Edit" },
+    };
 
   return (
     <div
@@ -551,16 +624,23 @@ function App() {
 
                 {isGenerating && (
                   <div className="absolute inset-0 grid place-items-center bg-black/45">
-                    <div className="app-card-2 rounded-2xl px-4 py-3 lg:px-5 lg:py-4">
+                    <div className="app-card-2 rounded-2xl px-4 py-3 lg:px-5 lg:py-4 max-w-[90%]">
                       <div className="flex items-center gap-2 lg:gap-3">
                         <div className="h-4 w-4 lg:h-5 lg:w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                        <div>
-                          <p className="text-xs lg:text-sm font-semibold">Working...</p>
+                        <div className="space-y-1">
+                          <p className="text-xs lg:text-sm font-semibold">
+                            Working...
+                          </p>
                           <p className="text-[10px] lg:text-xs text-[color:var(--app-muted)] hidden sm:block">
                             Controls locked until the new image arrives.
                           </p>
                         </div>
                       </div>
+                      {activePrompt && (
+                        <p className="mt-3 text-[10px] lg:text-xs text-[color:var(--app-muted)] break-words">
+                          {activePrompt}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -589,13 +669,59 @@ function App() {
 
             {/* Mobile: Compact tools section - shown only on small screens */}
             <section className="lg:hidden app-card rounded-2xl p-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center justify-between gap-2 pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-[color:var(--app-muted)]">
+                    Oneshot
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (controlsDisabled) return;
+                      setIsBatchMode((prev) => !prev);
+                      setPendingPrompts([]);
+                    }}
+                    disabled={controlsDisabled}
+                    className={`relative h-5 w-9 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isBatchMode
+                        ? "bg-teal-400/80 border-teal-200/60"
+                        : "bg-white/10 border-white/20"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
+                        isBatchMode ? "left-4" : "left-0.5"
+                      }`}
+                    />
+                  </button>
+                  <span className="text-[10px] text-[color:var(--app-muted)]">
+                    Batch
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBatchGenerate}
+                  disabled={
+                    controlsDisabled ||
+                    !isBatchMode ||
+                    pendingPrompts.length === 0
+                  }
+                  className="rounded-full px-3 py-1 text-[10px] font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Generate
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-3">
                 {/* Compact sliders */}
                 <div className="space-y-3">
                   <div className="flex flex-col gap-1">
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-medium text-gray-300">Zoom</span>
-                      <span className="text-[10px] text-gray-400 tabular-nums">{zoomLevel}%</span>
+                      <span className="text-[10px] font-medium text-gray-300">
+                        Zoom
+                      </span>
+                      <span className="text-[10px] text-gray-400 tabular-nums">
+                        {zoomLevel}%
+                      </span>
                     </div>
                     <input
                       type="range"
@@ -604,7 +730,8 @@ function App() {
                       value={zoomLevel}
                       onChange={(e) => setZoomLevel(Number(e.target.value))}
                       onPointerUp={() => {
-                        const base = images?.[selectedImageIndex]?.zoomPercent ?? 100;
+                        const base =
+                          images?.[selectedImageIndex]?.zoomPercent ?? 100;
                         if (zoomLevel !== base) handleZoomRelease(zoomLevel);
                       }}
                       disabled={controlsDisabled}
@@ -616,18 +743,27 @@ function App() {
                   </div>
                   <div className="flex flex-col gap-1">
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-medium text-gray-300">Brightness</span>
-                      <span className="text-[10px] text-gray-400 tabular-nums">{brightnessLevel}%</span>
+                      <span className="text-[10px] font-medium text-gray-300">
+                        Brightness
+                      </span>
+                      <span className="text-[10px] text-gray-400 tabular-nums">
+                        {brightnessLevel}%
+                      </span>
                     </div>
                     <input
                       type="range"
                       min={0}
                       max={200}
                       value={brightnessLevel}
-                      onChange={(e) => setBrightnessLevel(Number(e.target.value))}
+                      onChange={(e) =>
+                        setBrightnessLevel(Number(e.target.value))
+                      }
                       onPointerUp={() => {
-                        const base = images?.[selectedImageIndex]?.brightnessPercent ?? 100;
-                        if (brightnessLevel !== base) handleBrightnessRelease(brightnessLevel);
+                        const base =
+                          images?.[selectedImageIndex]?.brightnessPercent ??
+                          100;
+                        if (brightnessLevel !== base)
+                          handleBrightnessRelease(brightnessLevel);
                       }}
                       disabled={controlsDisabled}
                       style={{
@@ -638,25 +774,69 @@ function App() {
                   </div>
                 </div>
                 {/* Compact quick tools */}
-                <div className="flex flex-col gap-2">
-                  <CenterButton
-                    onClick={handleCenterClick}
-                    disabled={controlsDisabled}
-                    isGenerating={isGenerating}
-                    size="compact"
-                  />
+                <div className="space-y-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <PositionButton
+                      onClick={handleAlignLeftClick}
+                      disabled={controlsDisabled}
+                      isGenerating={isGenerating}
+                      size="compact"
+                      label="Left"
+                      icon={AlignLeft}
+                      toneClassName="bg-gradient-to-r from-sky-400/90 to-cyan-300/90 hover:from-sky-300 hover:to-cyan-200"
+                    />
+                    <PositionButton
+                      onClick={handleCenterClick}
+                      disabled={controlsDisabled}
+                      isGenerating={isGenerating}
+                      size="compact"
+                      label="Center"
+                      icon={Focus}
+                      toneClassName="bg-gradient-to-r from-teal-400/90 to-lime-300/90 hover:from-teal-300 hover:to-lime-200"
+                    />
+                    <PositionButton
+                      onClick={handleAlignRightClick}
+                      disabled={controlsDisabled}
+                      isGenerating={isGenerating}
+                      size="compact"
+                      label="Right"
+                      icon={AlignRight}
+                      toneClassName="bg-gradient-to-r from-rose-400/90 to-amber-300/90 hover:from-rose-300 hover:to-amber-200"
+                    />
+                  </div>
                   <MakeOldButton
                     onClick={handleMakeOlder}
                     disabled={controlsDisabled}
                     isGenerating={isGenerating}
                     size="compact"
                   />
-                  <ManualButton
-                    onClick={() => setIsManualOpen(true)}
-                    disabled={controlsDisabled}
-                    isGenerating={isGenerating}
-                    size="compact"
-                  />
+                </div>
+              </div>
+              <div className="mt-3">
+                <textarea
+                  value={manualPrompt}
+                  onChange={(e) => setManualPrompt(e.target.value)}
+                  placeholder="Describe an edit"
+                  rows={3}
+                  disabled={controlsDisabled}
+                  className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-[10px] text-white/90 placeholder:text-white/40 focus:outline-none focus:ring-0 app-focus disabled:opacity-50"
+                />
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-[10px] text-[color:var(--app-faint)]">
+                    {isBatchMode
+                      ? `Queued ${pendingPrompts.length}`
+                      : "Runs immediately"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleManualSubmit}
+                    disabled={
+                      controlsDisabled || manualPrompt.trim().length === 0
+                    }
+                    className="rounded-full px-3 py-1 text-[10px] font-semibold bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isBatchMode ? "Add prompt" : "Generate"}
+                  </button>
                 </div>
               </div>
             </section>
@@ -680,8 +860,8 @@ function App() {
                     (isLast && !isOriginal);
 
                   const editType = image.editType ?? "unknown";
-                  const meta = editTypeIconMap[editType] ??
-                    editTypeIconMap.unknown;
+                  const meta =
+                    editTypeIconMap[editType] ?? editTypeIconMap.unknown;
                   const Icon = meta.icon;
 
                   const deleteTitle = isOriginal
@@ -765,9 +945,89 @@ function App() {
           <aside className="hidden lg:block space-y-5">
             <section className="app-card rounded-3xl p-5">
               <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold">Generation mode</h2>
+                <button
+                  type="button"
+                  onClick={handleBatchGenerate}
+                  disabled={
+                    controlsDisabled ||
+                    !isBatchMode ||
+                    pendingPrompts.length === 0
+                  }
+                  className="rounded-full px-3 py-1 text-xs font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Generate
+                </button>
+              </div>
+              <div className="mt-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[color:var(--app-muted)]">
+                    Oneshot
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (controlsDisabled) return;
+                      setIsBatchMode((prev) => !prev);
+                      setPendingPrompts([]);
+                    }}
+                    disabled={controlsDisabled}
+                    className={`relative h-6 w-11 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isBatchMode
+                        ? "bg-teal-400/80 border-teal-200/60"
+                        : "bg-white/10 border-white/20"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                        isBatchMode ? "left-5" : "left-0.5"
+                      }`}
+                    />
+                  </button>
+                  <span className="text-xs text-[color:var(--app-muted)]">
+                    Batch
+                  </span>
+                </div>
+                <span className="text-xs text-[color:var(--app-faint)]">
+                  {isBatchMode
+                    ? `Queued prompts: ${pendingPrompts.length}`
+                    : "Runs instantly"}
+                </span>
+              </div>
+              <div className="mt-4">
+                <textarea
+                  value={manualPrompt}
+                  onChange={(e) => setManualPrompt(e.target.value)}
+                  placeholder="Describe an edit"
+                  rows={4}
+                  disabled={controlsDisabled}
+                  className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/90 placeholder:text-white/40 focus:outline-none focus:ring-0 app-focus disabled:opacity-50"
+                />
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-xs text-[color:var(--app-faint)]">
+                    {isBatchMode
+                      ? "Add multiple prompts, then generate once."
+                      : "Submit to generate immediately."}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleManualSubmit}
+                    disabled={
+                      controlsDisabled || manualPrompt.trim().length === 0
+                    }
+                    className="rounded-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isBatchMode ? "Add prompt" : "Generate"}
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section className="app-card rounded-3xl p-5">
+              <div className="flex items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold">Adjustments</h2>
                 <span className="app-badge rounded-full px-3 py-1 text-xs text-[color:var(--app-muted)]">
-                  Release to apply
+                  {isBatchMode ? "Release to queue" : "Release to apply"}
                 </span>
               </div>
 
@@ -792,21 +1052,38 @@ function App() {
             <section className="app-card rounded-3xl p-5">
               <h2 className="text-sm font-semibold">Quick tools</h2>
               <p className="mt-1 text-sm text-[color:var(--app-muted)]">
-                One-click edits that generate a new step.
+                One-click edits{" "}
+                {isBatchMode ? "queue prompts" : "generate a new step"}.
               </p>
-              <div className="mt-4 flex flex-col gap-3">
-                <CenterButton
-                  onClick={handleCenterClick}
-                  disabled={controlsDisabled}
-                  isGenerating={isGenerating}
-                />
+              <div className="mt-4 space-y-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <PositionButton
+                    onClick={handleAlignLeftClick}
+                    disabled={controlsDisabled}
+                    isGenerating={isGenerating}
+                    label="Left"
+                    icon={AlignLeft}
+                    toneClassName="bg-gradient-to-r from-sky-400/90 to-cyan-300/90 hover:from-sky-300 hover:to-cyan-200"
+                  />
+                  <PositionButton
+                    onClick={handleCenterClick}
+                    disabled={controlsDisabled}
+                    isGenerating={isGenerating}
+                    label="Center"
+                    icon={Focus}
+                    toneClassName="bg-gradient-to-r from-teal-400/90 to-lime-300/90 hover:from-teal-300 hover:to-lime-200"
+                  />
+                  <PositionButton
+                    onClick={handleAlignRightClick}
+                    disabled={controlsDisabled}
+                    isGenerating={isGenerating}
+                    label="Right"
+                    icon={AlignRight}
+                    toneClassName="bg-gradient-to-r from-rose-400/90 to-amber-300/90 hover:from-rose-300 hover:to-amber-200"
+                  />
+                </div>
                 <MakeOldButton
                   onClick={handleMakeOlder}
-                  disabled={controlsDisabled}
-                  isGenerating={isGenerating}
-                />
-                <ManualButton
-                  onClick={() => setIsManualOpen(true)}
                   disabled={controlsDisabled}
                   isGenerating={isGenerating}
                 />
@@ -814,55 +1091,6 @@ function App() {
             </section>
           </aside>
         </main>
-
-        {isManualOpen && (
-          <div className="fixed inset-0 z-50 grid place-items-center px-4">
-            <div
-              className="absolute inset-0 bg-black/60"
-              onClick={() => setIsManualOpen(false)}
-            />
-            <div className="relative w-full max-w-lg app-card rounded-3xl p-5 lg:p-6">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-base lg:text-lg font-semibold">Manual edit</h2>
-                  <p className="text-xs lg:text-sm text-[color:var(--app-muted)]">
-                    Describe the change you want to apply.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsManualOpen(false)}
-                  className="rounded-full px-3 py-1.5 text-xs font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-
-              <div className="mt-4">
-                <textarea
-                  value={manualPrompt}
-                  onChange={(e) => setManualPrompt(e.target.value)}
-                  placeholder="e.g., Remove the background and make the sky a soft sunrise gradient"
-                  rows={5}
-                  className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/90 placeholder:text-white/40 focus:outline-none focus:ring-0 app-focus"
-                />
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[10px] lg:text-xs text-[color:var(--app-faint)]">
-                    Tip: Be specific about the subject, style, and constraints.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleManualSubmit}
-                    disabled={controlsDisabled || manualPrompt.trim().length === 0}
-                    className="rounded-full px-4 py-2 text-xs lg:text-sm font-semibold bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isGenerating ? "Generating..." : "Apply manual edit"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

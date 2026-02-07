@@ -69,6 +69,8 @@ export const generateNextStep = action({
     sourceImageId: v.id("images"),
     prompt: v.string(),
     editType: v.union(
+      v.literal("align_left"),
+      v.literal("align_right"),
       v.literal("center"),
       v.literal("make_old"),
       v.literal("manual"),
@@ -202,7 +204,7 @@ export const generateNextStep = action({
     // Call OpenRouter
     const result = await openRouter.chat.send({
       chatGenerationParams: {
-        model: "google/gemini-2.5-flash-image",
+        model: "google/gemini-3-pro-image-preview",
         messages: [
           {
             role: "user",

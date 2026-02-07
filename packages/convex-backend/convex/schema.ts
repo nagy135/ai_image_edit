@@ -15,6 +15,8 @@ export default defineSchema({
     editType: v.optional(
       v.union(
         v.literal("original"),
+        v.literal("align_left"),
+        v.literal("align_right"),
         v.literal("center"),
         v.literal("make_old"),
         v.literal("manual"),

@@ -3,6 +3,8 @@ import { v } from "convex/values";
 
 const editTypeValidator = v.union(
   v.literal("original"),
+  v.literal("align_left"),
+  v.literal("align_right"),
   v.literal("center"),
   v.literal("make_old"),
   v.literal("manual"),
