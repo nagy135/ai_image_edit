@@ -12,6 +12,17 @@ export default defineSchema({
     chainId: v.id("imageChains"),
     storageId: v.id("_storage"),
     prompt: v.string(),
+    editType: v.optional(
+      v.union(
+        v.literal("original"),
+        v.literal("center"),
+        v.literal("make_old"),
+        v.literal("manual"),
+        v.literal("zoom"),
+        v.literal("brightness"),
+        v.literal("unknown"),
+      ),
+    ),
     stepNumber: v.number(),
     zoomPercent: v.number(),
     brightnessPercent: v.number(),

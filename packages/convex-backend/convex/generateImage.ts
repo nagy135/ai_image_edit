@@ -37,12 +37,45 @@ const parseBase64DataUrl = (
   return { mimeType, arrayBuffer };
 };
 
+const SYSTEM_PROMPT = `
+You are an AI image editor. Your task is to edit the latest image (if its present, first generation doesnt have it) with the prompt but keep close to original image.
+Keep the same subject and style unless specified otherwise in the prompt.
+If there are people in the image, make sure they are the same as in original image.
+Zoom (value 0-200): 100 = original framing, 0 = zoomed out so that main object is half the original size, 200 = zoomed in so that object is twice as big
+Brightness (value 0-200): 100 = original brightness, 0 = black, 200 = white
+
+You will receive data in the following format:
+
+---
+
+Original image:
+
+---
+
+Latest image in the chain (apply edits to this):
+
+---
+
+Prompt:
+
+---
+
+`;
+
 // Action that generates, stores, and appends the next step.
 export const generateNextStep = action({
   args: {
     chainId: v.id("imageChains"),
     sourceImageId: v.id("images"),
     prompt: v.string(),
+    editType: v.union(
+      v.literal("center"),
+      v.literal("make_old"),
+      v.literal("manual"),
+      v.literal("zoom"),
+      v.literal("brightness"),
+      v.literal("unknown"),
+    ),
     zoomPercent: v.optional(v.number()),
     brightnessPercent: v.optional(v.number()),
   },
@@ -85,9 +118,12 @@ export const generateNextStep = action({
 
     // We still validate that the provided sourceImageId belongs to the chain,
     // but we always generate using the last image in the chain.
-    const requestedSource = (await ctx.runQuery(internal.images.internalGetImage, {
-      imageId: args.sourceImageId,
-    })) as Doc<"images"> | null;
+    const requestedSource = (await ctx.runQuery(
+      internal.images.internalGetImage,
+      {
+        imageId: args.sourceImageId,
+      },
+    )) as Doc<"images"> | null;
 
     if (!requestedSource) {
       throw new Error("Source image not found");
@@ -156,9 +192,11 @@ export const generateNextStep = action({
       });
     }
 
+    const prompt = `${SYSTEM_PROMPT}${args.prompt}`;
+
     messageContent.push({
       type: "text",
-      text: args.prompt,
+      text: prompt,
     });
 
     // Call OpenRouter
@@ -200,6 +238,7 @@ export const generateNextStep = action({
       chainId: args.chainId,
       storageId: storedId,
       prompt: args.prompt,
+      editType: args.editType,
       stepNumber: nextStepNumber,
       zoomPercent: args.zoomPercent ?? primaryImage.zoomPercent ?? 100,
       brightnessPercent:

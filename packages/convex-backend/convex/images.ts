@@ -1,6 +1,16 @@
 import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
+const editTypeValidator = v.union(
+  v.literal("original"),
+  v.literal("center"),
+  v.literal("make_old"),
+  v.literal("manual"),
+  v.literal("zoom"),
+  v.literal("brightness"),
+  v.literal("unknown"),
+);
+
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
@@ -90,6 +100,7 @@ export const createChain = mutation({
       chainId,
       storageId: args.originalStorageId,
       prompt: "", // no prompt for the original
+      editType: "original",
       stepNumber: 0,
       zoomPercent: 100,
       brightnessPercent: 100,
@@ -106,6 +117,7 @@ export const addImage = internalMutation({
     chainId: v.id("imageChains"),
     storageId: v.id("_storage"),
     prompt: v.string(),
+    editType: editTypeValidator,
     stepNumber: v.number(),
     zoomPercent: v.number(),
     brightnessPercent: v.number(),
@@ -115,6 +127,7 @@ export const addImage = internalMutation({
       chainId: args.chainId,
       storageId: args.storageId,
       prompt: args.prompt,
+      editType: args.editType,
       stepNumber: args.stepNumber,
       zoomPercent: args.zoomPercent,
       brightnessPercent: args.brightnessPercent,
@@ -131,6 +144,7 @@ export const addEditedImage = mutation({
     chainId: v.id("imageChains"),
     storageId: v.id("_storage"),
     prompt: v.string(),
+    editType: editTypeValidator,
     stepNumber: v.number(),
     zoomPercent: v.number(),
     brightnessPercent: v.number(),
@@ -140,6 +154,7 @@ export const addEditedImage = mutation({
       chainId: args.chainId,
       storageId: args.storageId,
       prompt: args.prompt,
+      editType: args.editType,
       stepNumber: args.stepNumber,
       zoomPercent: args.zoomPercent,
       brightnessPercent: args.brightnessPercent,

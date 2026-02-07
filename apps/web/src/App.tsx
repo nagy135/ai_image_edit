@@ -3,7 +3,15 @@ import { api } from "@repo/convex-backend/convex/_generated/api";
 import { useState, useRef, useEffect } from "react";
 import type { Doc, Id } from "@repo/convex-backend/convex/_generated/dataModel";
 import { EditSlider } from "./components/EditSlider";
-import { Focus, PencilLine, Sparkles } from "lucide-react";
+import {
+  Focus,
+  Image as ImageIcon,
+  PencilLine,
+  Sparkles,
+  Sun,
+  Wand2,
+  ZoomIn,
+} from "lucide-react";
 
 // Reusable button components for tools
 interface QuickToolButtonProps {
@@ -89,6 +97,7 @@ type ImageDoc = Doc<"images">;
 type ChainDoc = Doc<"imageChains">;
 type ImageWithUrl = ImageDoc & { url: string | null };
 type ChainWithUrl = ChainDoc & { originalUrl: string | null };
+type EditType = ImageDoc["editType"];
 
 const appShellStyle = {
   backgroundColor: "var(--app-bg-0)",
@@ -240,6 +249,7 @@ function App() {
   // Generic function for generating images with a prompt
   const generateImage = async (
     prompt: string,
+    editType: EditType,
     nextZoomPercent?: number,
     nextBrightnessPercent?: number,
   ) => {
@@ -259,6 +269,7 @@ function App() {
         chainId: currentChainId,
         sourceImageId: sourceImage._id,
         prompt,
+        editType,
         zoomPercent,
         brightnessPercent,
       });
@@ -274,6 +285,7 @@ function App() {
     const source = images?.[selectedImageIndex];
     await generateImage(
       "Center the main object in the image",
+      "center",
       source?.zoomPercent ?? zoomLevel,
       source?.brightnessPercent ?? brightnessLevel,
     );
@@ -286,7 +298,7 @@ function App() {
     const amount = Math.abs(value - base);
     const prompt = `Adjust the zoom ${direction} by about ${amount}%. Target zoom ${value}% (100% = original framing). Keep the same subject and style.`;
     const brightness = images?.[selectedImageIndex]?.brightnessPercent ?? 100;
-    await generateImage(prompt, value, brightness);
+    await generateImage(prompt, "zoom", value, brightness);
   };
 
   const handleBrightnessRelease = async (value: number) => {
@@ -296,7 +308,7 @@ function App() {
     const amount = Math.abs(value - base);
     const prompt = `Make the image about ${amount}% ${direction}. Target brightness ${value}% (100% = original). Adjust overall brightness/exposure while keeping the same subject and composition.`;
     const zoom = images?.[selectedImageIndex]?.zoomPercent ?? 100;
-    await generateImage(prompt, zoom, value);
+    await generateImage(prompt, "brightness", zoom, value);
   };
 
    const handleSelectChain = (chainId: Id<"imageChains">) => {
@@ -307,12 +319,13 @@ function App() {
 
    const handleMakeOlder = async () => {
      const source = images?.[selectedImageIndex];
-     await generateImage(
-       "Make everyone and everything in this photo look noticeably older. Add wrinkles, age spots, graying hair, aged appearance to any people. Show aging effects on objects and surroundings as well.",
-       source?.zoomPercent ?? zoomLevel,
-       source?.brightnessPercent ?? brightnessLevel,
-     );
-   };
+      await generateImage(
+        "Make everyone and everything in this photo look noticeably older. Add wrinkles, age spots, graying hair, aged appearance to any people. Show aging effects on objects and surroundings as well.",
+        "make_old",
+        source?.zoomPercent ?? zoomLevel,
+        source?.brightnessPercent ?? brightnessLevel,
+      );
+    };
 
    const handleManualSubmit = async () => {
      const nextPrompt = manualPrompt.trim();
@@ -320,6 +333,7 @@ function App() {
      const source = images?.[selectedImageIndex];
      await generateImage(
        nextPrompt,
+       "manual",
        source?.zoomPercent ?? zoomLevel,
        source?.brightnessPercent ?? brightnessLevel,
      );
@@ -473,6 +487,16 @@ function App() {
     (max, img) => Math.max(max, img.stepNumber),
     0,
   );
+
+  const editTypeIconMap: Record<string, { icon: typeof Focus; label: string }> = {
+    original: { icon: ImageIcon, label: "Original" },
+    center: { icon: Focus, label: "Center" },
+    make_old: { icon: Sparkles, label: "Make old" },
+    manual: { icon: PencilLine, label: "Manual" },
+    zoom: { icon: ZoomIn, label: "Zoom" },
+    brightness: { icon: Sun, label: "Brightness" },
+    unknown: { icon: Wand2, label: "Edit" },
+  };
 
   return (
     <div
@@ -655,6 +679,11 @@ function App() {
                     (isOriginal && images.length >= 1) ||
                     (isLast && !isOriginal);
 
+                  const editType = image.editType ?? "unknown";
+                  const meta = editTypeIconMap[editType] ??
+                    editTypeIconMap.unknown;
+                  const Icon = meta.icon;
+
                   const deleteTitle = isOriginal
                     ? "Delete original (reset project)"
                     : "Delete last step";
@@ -687,6 +716,12 @@ function App() {
                           />
                           <div className="absolute left-1 top-1 lg:left-2 lg:top-2 app-badge rounded-full px-1.5 py-0.5 lg:px-2 text-[8px] lg:text-[10px] text-[color:var(--app-muted)]">
                             {image.stepNumber}
+                          </div>
+                          <div
+                            title={meta.label}
+                            className="absolute right-1 top-1 lg:right-2 lg:top-2 h-5 w-5 lg:h-7 lg:w-7 rounded-full border border-white/15 bg-black/60 backdrop-blur grid place-items-center text-white/90"
+                          >
+                            <Icon className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                           </div>
                         </button>
 
