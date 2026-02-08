@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { SignInButton, UserButton, useUser } from "@clerk/clerk-react";
 import { Button } from "./components/ui/button";
 import {
@@ -44,6 +44,7 @@ import {
   buildBrightnessPrompt,
   getTooltipText,
   getImageUrl,
+  navigateHistoryTree,
 } from "./utils";
 import { APP_SHELL_STYLE, EDIT_TYPE_ICON_MAP, PROMPTS } from "./constants";
 import type { Id } from "./types";
@@ -216,6 +217,14 @@ function ImageEditorApp() {
   const { user } = useUser();
   const clerkUserId = user?.id || null;
 
+  // Fetch user credits
+  const currentUser = useQuery(
+    api.users.getCurrentUser,
+    clerkUserId ? { clerkUserId } : "skip"
+  );
+  const credits = currentUser?.credits ?? 0;
+  const hasCredits = credits > 0;
+
   // Slider state
   const [selectedImageId, setSelectedImageId] = useState<Id<"images"> | null>(
     null,
@@ -241,29 +250,30 @@ function ImageEditorApp() {
     uploadDisabled,
   } = useImageChain(false, selectedImageId, setSelectedImageId, clerkUserId);
 
-  // Image generation management
-  const {
-    isGenerating,
-    activePrompt,
-    isBatchMode,
-    pendingPrompts,
-    manualPrompt,
-    generateImage,
-    enqueuePrompt,
-    handleBatchGenerate,
-    setIsBatchMode,
-    setManualPrompt,
-    setPendingPrompts,
-  } = useImageGeneration(
-    currentChainId,
-    images,
-    () => getSelectedImage(images, selectedImageId),
-    setSelectedImageId,
-    selectedModel,
-    clerkUserId,
-  );
+   // Image generation management
+   const {
+     isGenerating,
+     activePrompt,
+     isBatchMode,
+     pendingPrompts,
+     manualPrompt,
+     generateImage,
+     enqueuePrompt,
+     handleBatchGenerate,
+     setIsBatchMode,
+     setManualPrompt,
+     setPendingPrompts,
+   } = useImageGeneration(
+     currentChainId,
+     images,
+     () => getSelectedImage(images, selectedImageId),
+     setSelectedImageId,
+     selectedModel,
+     clerkUserId,
+     hasCredits,
+   );
 
-  const controlsDisabled = isGenerating;
+   const controlsDisabled = isGenerating || !hasCredits;
 
   // Sync slider state with selected image
   useEffect(() => {
@@ -274,29 +284,67 @@ function ImageEditorApp() {
     setBrightnessLevel(img.brightnessPercent ?? 100);
   }, [images, selectedImageId]);
 
-  // Auto-select latest image
-  useEffect(() => {
-    if (!images || images.length === 0) return;
-    setSelectedImageId((prev) => {
-      if (prev && images.some((img) => img._id === prev)) return prev;
-      const latest = getLatestImage(images);
-      return latest?._id ?? null;
-    });
-  }, [images]);
+   // Auto-select latest image
+   useEffect(() => {
+     if (!images || images.length === 0) return;
+     setSelectedImageId((prev) => {
+       if (prev && images.some((img) => img._id === prev)) return prev;
+       const latest = getLatestImage(images);
+       return latest?._id ?? null;
+     });
+   }, [images]);
 
-  // Show upload view when no chain selected
-  if (showUpload || !currentChainId || !images || images.length === 0) {
-    return (
-      <UploadView
-        allChains={allChains}
-        uploadDisabled={uploadDisabled}
-        fileInputRef={fileInputRef}
-        onDrop={handleDrop}
-        onFileInputChange={handleFileInputChange}
-        onSelectChain={handleSelectChain}
-      />
-    );
-  }
+   // Keyboard navigation for history
+   useEffect(() => {
+     const handleKeyDown = (e: KeyboardEvent) => {
+       if (!images || images.length === 0 || controlsDisabled) return;
+
+       // Map arrow keys and hjkl to directions
+       let direction: "up" | "down" | "left" | "right" | null = null;
+
+       if (e.key === "ArrowUp" || e.key === "k") {
+         direction = "up";
+       } else if (e.key === "ArrowDown" || e.key === "j") {
+         direction = "down";
+       } else if (e.key === "ArrowLeft" || e.key === "h") {
+         direction = "left";
+       } else if (e.key === "ArrowRight" || e.key === "l") {
+         direction = "right";
+       }
+
+       if (direction) {
+         e.preventDefault();
+         const newImageId = navigateHistoryTree(
+           selectedImageId,
+           images,
+           direction
+         );
+         if (newImageId) {
+           setSelectedImageId(newImageId);
+         }
+       }
+     };
+
+     window.addEventListener("keydown", handleKeyDown);
+     return () => {
+       window.removeEventListener("keydown", handleKeyDown);
+     };
+   }, [selectedImageId, images, controlsDisabled]);
+
+   // Show upload view when no chain selected
+   if (showUpload || !currentChainId || !images || images.length === 0) {
+     return (
+       <UploadView
+         allChains={allChains}
+         uploadDisabled={uploadDisabled}
+         credits={credits}
+         fileInputRef={fileInputRef}
+         onDrop={handleDrop}
+         onFileInputChange={handleFileInputChange}
+         onSelectChain={handleSelectChain}
+       />
+     );
+   }
 
   const currentImage = getSelectedImage(images, selectedImageId);
   if (!currentImage) {
@@ -537,16 +585,19 @@ function ImageEditorApp() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 lg:gap-2">
-            <UserButton
-              afterSignOutUrl="/"
-              appearance={{ elements: { avatarBox: "h-8 w-8" } }}
-            />
-            {isGenerating && (
-              <span className="hidden sm:inline app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs text-[color:var(--app-muted)]">
-                Generating...
-              </span>
-            )}
+           <div className="flex items-center gap-1.5 lg:gap-2">
+             <UserButton
+               afterSignOutUrl="/"
+               appearance={{ elements: { avatarBox: "h-8 w-8" } }}
+             />
+             <span className={`app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs ${hasCredits ? "text-[color:var(--app-muted)]" : "text-red-400"}`}>
+               Credits: {credits}
+             </span>
+             {isGenerating && (
+               <span className="hidden sm:inline app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs text-[color:var(--app-muted)]">
+                 Generating...
+               </span>
+             )}
             <Button
               type="button"
               onClick={handleNewImage}

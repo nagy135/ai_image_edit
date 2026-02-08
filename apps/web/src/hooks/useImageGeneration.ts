@@ -32,7 +32,8 @@ export function useImageGeneration(
     getSelectedImage: () => ImageWithUrl | null,
     setSelectedImageId?: (id: Id<"images"> | null) => void,
     selectedModel?: string,
-    clerkUserId?: string | null
+    clerkUserId?: string | null,
+    hasCredits?: boolean
   ): UseImageGenerationReturn {
   const [isGenerating, setIsGenerating] = useState(false);
   const [activePrompt, setActivePrompt] = useState<string>("");
@@ -42,20 +43,24 @@ export function useImageGeneration(
 
   const generateNextStep = useAction(api.generateImage.generateNextStep);
 
-  const generateImage = useCallback(
-    async (
-      prompt: string,
-      editType: EditType,
-      nextZoomPercent?: number,
-      nextBrightnessPercent?: number
-    ) => {
-      if (!currentChainId || !images || images.length === 0) return;
+   const generateImage = useCallback(
+     async (
+       prompt: string,
+       editType: EditType,
+       nextZoomPercent?: number,
+       nextBrightnessPercent?: number
+     ) => {
+       if (!currentChainId || !images || images.length === 0) return;
+       if (!hasCredits) {
+         alert("You have run out of credits. Please try again later or contact support.");
+         return;
+       }
 
-      setActivePrompt(prompt);
-      setIsGenerating(true);
-      try {
-        const sourceImage = getSelectedImage();
-        if (!sourceImage) return;
+       setActivePrompt(prompt);
+       setIsGenerating(true);
+       try {
+         const sourceImage = getSelectedImage();
+         if (!sourceImage) return;
 
         const zoomPercent = nextZoomPercent ?? sourceImage.zoomPercent ?? 100;
         const brightnessPercent =
@@ -85,8 +90,8 @@ export function useImageGeneration(
         setActivePrompt("");
       }
     },
-      [currentChainId, images, getSelectedImage, generateNextStep, setSelectedImageId, selectedModel, clerkUserId]
-  );
+       [currentChainId, images, getSelectedImage, generateNextStep, setSelectedImageId, selectedModel, clerkUserId, hasCredits]
+   );
 
   const enqueuePrompt = useCallback((prompt: string) => {
     if (!prompt.trim()) return;

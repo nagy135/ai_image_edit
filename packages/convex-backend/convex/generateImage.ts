@@ -102,6 +102,11 @@ export const generateNextStep = action({
       throw new Error("Not authenticated");
     }
 
+    // Decrement credits before generation
+    await ctx.runMutation(internal.users.decrementCredits, {
+      clerkUserId: args.clerkUserId,
+    });
+
     // Load chain + images
     const chain = (await ctx.runQuery(internal.images.internalGetChain, {
       chainId: args.chainId,

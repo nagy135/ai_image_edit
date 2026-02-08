@@ -6,6 +6,7 @@ import { UserButton } from "@clerk/clerk-react";
 interface UploadViewProps {
   allChains?: ChainWithUrl[];
   uploadDisabled: boolean;
+  credits: number;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onDrop: (e: React.DragEvent) => void;
   onFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -15,11 +16,13 @@ interface UploadViewProps {
 export function UploadView({
   allChains,
   uploadDisabled,
+  credits,
   fileInputRef,
   onDrop,
   onFileInputChange,
   onSelectChain,
 }: UploadViewProps) {
+  const hasCredits = credits > 0;
   return (
     <div className="min-h-screen px-6 py-10" style={APP_SHELL_STYLE}>
       <div className="mx-auto max-w-6xl app-anim-in">
@@ -35,15 +38,15 @@ export function UploadView({
               </h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <UserButton
-              afterSignOutUrl="/"
-              appearance={{ elements: { avatarBox: "h-8 w-8" } }}
-            />
-            <span className="app-badge rounded-full px-3 py-1 text-xs text-[color:var(--app-muted)]">
-              {uploadDisabled ? "Uploading..." : "Convex storage"}
-            </span>
-          </div>
+           <div className="flex items-center gap-2">
+             <UserButton
+               afterSignOutUrl="/"
+               appearance={{ elements: { avatarBox: "h-8 w-8" } }}
+             />
+             <span className={`app-badge rounded-full px-3 py-1 text-xs ${hasCredits ? "text-[color:var(--app-muted)]" : "text-red-400"}`}>
+               Credits: {credits}
+             </span>
+           </div>
         </header>
 
         <main className="mt-8 grid gap-6 lg:grid-cols-2">

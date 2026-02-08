@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
 export const upsertCurrentUser = mutation({
@@ -39,6 +39,7 @@ export const upsertCurrentUser = mutation({
       name: args.name,
       email: args.email,
       imageUrl: args.imageUrl,
+      credits: 10,
       createdAt: now,
       updatedAt: now,
     });
@@ -60,5 +61,33 @@ export const getCurrentUser = query({
         q.eq("clerkUserId", args.clerkUserId),
       )
       .unique();
+  },
+});
+
+export const decrementCredits = internalMutation({
+  args: {
+    clerkUserId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_user_id", (q) =>
+        q.eq("clerkUserId", args.clerkUserId),
+      )
+      .unique();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    if (user.credits <= 0) {
+      throw new Error("Insufficient credits for this operation");
+    }
+
+    await ctx.db.patch(user._id, {
+      credits: user.credits - 1,
+    });
+
+    return user.credits - 1;
   },
 });
