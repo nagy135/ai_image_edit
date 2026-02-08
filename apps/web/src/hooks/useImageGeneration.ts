@@ -27,12 +27,13 @@ interface UseImageGenerationReturn {
 }
 
 export function useImageGeneration(
-   currentChainId: Id<"imageChains"> | null,
-   images: ImageWithUrl[] | undefined,
-   getSelectedImage: () => ImageWithUrl | null,
-   setSelectedImageId?: (id: Id<"images"> | null) => void,
-   selectedModel?: string
- ): UseImageGenerationReturn {
+    currentChainId: Id<"imageChains"> | null,
+    images: ImageWithUrl[] | undefined,
+    getSelectedImage: () => ImageWithUrl | null,
+    setSelectedImageId?: (id: Id<"images"> | null) => void,
+    selectedModel?: string,
+    clerkUserId?: string | null
+  ): UseImageGenerationReturn {
   const [isGenerating, setIsGenerating] = useState(false);
   const [activePrompt, setActivePrompt] = useState<string>("");
   const [isBatchMode, setIsBatchMode] = useState(false);
@@ -62,15 +63,16 @@ export function useImageGeneration(
 
          const finalEditType = (editType === "original" || !editType) ? "unknown" : editType;
          
-         await generateNextStep({
-           chainId: currentChainId,
-           sourceImageId: sourceImage._id,
-           prompt,
-           editType: finalEditType,
-           zoomPercent,
-           brightnessPercent,
-           model: selectedModel,
-         });
+          await generateNextStep({
+            chainId: currentChainId,
+            clerkUserId: clerkUserId || "",
+            sourceImageId: sourceImage._id,
+            prompt,
+            editType: finalEditType,
+            zoomPercent,
+            brightnessPercent,
+            model: selectedModel,
+          });
          // Clear selected image to auto-select latest
          if (setSelectedImageId) {
            setSelectedImageId(null);
@@ -83,7 +85,7 @@ export function useImageGeneration(
         setActivePrompt("");
       }
     },
-     [currentChainId, images, getSelectedImage, generateNextStep, setSelectedImageId, selectedModel]
+      [currentChainId, images, getSelectedImage, generateNextStep, setSelectedImageId, selectedModel, clerkUserId]
   );
 
   const enqueuePrompt = useCallback((prompt: string) => {

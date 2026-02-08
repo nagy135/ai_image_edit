@@ -36,7 +36,8 @@ interface UseImageChainReturn {
 export function useImageChain(
   isGenerating: boolean,
   selectedImageId: Id<"images"> | null,
-  setSelectedImageId: (id: Id<"images"> | null) => void
+  setSelectedImageId: (id: Id<"images"> | null) => void,
+  clerkUserId: string | null = null
 ): UseImageChainReturn {
   const [currentChainId, setCurrentChainId] =
     useState<Id<"imageChains"> | null>(null);
@@ -47,17 +48,18 @@ export function useImageChain(
   // Queries
   const chain = useQuery(
     api.images.getChain,
-    currentChainId ? { chainId: currentChainId } : "skip"
+    currentChainId && clerkUserId ? { chainId: currentChainId, clerkUserId } : "skip"
   ) as ChainWithUrl | null | undefined;
 
   const images = useQuery(
     api.images.list,
-    currentChainId ? { chainId: currentChainId } : "skip"
+    currentChainId && clerkUserId ? { chainId: currentChainId, clerkUserId } : "skip"
   ) as ImageWithUrl[] | undefined;
 
-  const allChains = useQuery(api.images.listChains) as
-    | ChainWithUrl[]
-    | undefined;
+  const allChains = useQuery(
+    api.images.listChains,
+    clerkUserId ? { clerkUserId } : "skip"
+  ) as ChainWithUrl[] | undefined;
 
   // Mutations
   const createChain = useMutation(api.images.createChain);
@@ -73,9 +75,13 @@ export function useImageChain(
   // Handlers
   const handleFileSelect = useCallback(
     async (file: File) => {
+      if (!clerkUserId) {
+        alert("Not authenticated");
+        return;
+      }
       setIsUploading(true);
       try {
-        const uploadUrl = await generateUploadUrl({});
+        const uploadUrl = await generateUploadUrl({ clerkUserId });
         const uploadResponse = await fetch(uploadUrl, {
           method: "POST",
           headers: { "Content-Type": file.type || "application/octet-stream" },
@@ -91,6 +97,7 @@ export function useImageChain(
         };
 
         const chainId = await createChain({
+          clerkUserId,
           name: file.name,
           originalStorageId: storageId,
         });
@@ -105,7 +112,7 @@ export function useImageChain(
         setIsUploading(false);
       }
     },
-    [createChain, generateUploadUrl, setSelectedImageId]
+    [createChain, generateUploadUrl, setSelectedImageId, clerkUserId]
   );
 
   const handleDrop = useCallback(
@@ -145,22 +152,22 @@ export function useImageChain(
   );
 
   const handleDeleteLastStep = useCallback(async () => {
-    if (!currentChainId || !images || images.length <= 1) return;
+    if (!currentChainId || !images || images.length <= 1 || !clerkUserId) return;
     if (controlsDisabled) return;
     try {
-      await deleteLastStep({ chainId: currentChainId });
+      await deleteLastStep({ chainId: currentChainId, clerkUserId });
     } catch (error) {
       console.error("Error deleting last step:", error);
       alert("Failed to delete last step");
     }
-  }, [currentChainId, images, controlsDisabled, deleteLastStep]);
+  }, [currentChainId, images, controlsDisabled, deleteLastStep, clerkUserId]);
 
   const handleDeleteLeafImage = useCallback(
     async (imageId: Id<"images">) => {
-      if (!currentChainId || !images || images.length <= 1) return;
+      if (!currentChainId || !images || images.length <= 1 || !clerkUserId) return;
       if (controlsDisabled) return;
       try {
-        await deleteLeafImage({ imageId });
+        await deleteLeafImage({ imageId, clerkUserId });
         if (selectedImageId === imageId) {
           setSelectedImageId(null);
         }
@@ -176,16 +183,17 @@ export function useImageChain(
       deleteLeafImage,
       selectedImageId,
       setSelectedImageId,
+      clerkUserId,
     ]
   );
 
   const handleDeleteChainAction = useCallback(async () => {
-    if (!currentChainId) return;
+    if (!currentChainId || !clerkUserId) return;
     if (controlsDisabled) return;
     const ok = window.confirm("Delete this project and reset to upload?");
     if (!ok) return;
     try {
-      const result = await deleteChain({ chainId: currentChainId });
+      const result = await deleteChain({ chainId: currentChainId, clerkUserId });
       if (result?.deleted) {
         handleNewImage();
       } else {
@@ -195,7 +203,7 @@ export function useImageChain(
       console.error("Error deleting chain:", error);
       alert("Failed to delete project");
     }
-  }, [currentChainId, controlsDisabled, deleteChain, handleNewImage]);
+  }, [currentChainId, controlsDisabled, deleteChain, handleNewImage, clerkUserId]);
 
   return {
     currentChainId,

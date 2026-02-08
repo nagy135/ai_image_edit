@@ -20,50 +20,29 @@ const editTypeValidator = v.union(
   v.literal("unknown"),
 );
 
-const requireAuth = async (ctx: { auth: { getUserIdentity: () => Promise<any> } }) => {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    throw new Error("Not authenticated");
+const verifyChainOwnership = (chain: any, userId: string): any => {
+  if (!chain || chain.userId !== userId) {
+    throw new Error("Chain not found or access denied");
   }
-  return identity;
-};
-
-const getChainForUser = async (
-  ctx: { auth: { getUserIdentity: () => Promise<any> }; db: any },
-  chainId: any,
-) => {
-  const identity = await requireAuth(ctx);
-  const chain = await ctx.db.get(chainId);
-  if (!chain || chain.userId !== identity.subject) {
-    return { chain: null, identity };
-  }
-  return { chain, identity };
-};
-
-const requireChainOwner = async (
-  ctx: { auth: { getUserIdentity: () => Promise<any> }; db: any },
-  chainId: any,
-) => {
-  const { chain, identity } = await getChainForUser(ctx, chainId);
-  if (!chain) {
-    throw new Error("Chain not found");
-  }
-  return { chain, identity };
+  return chain;
 };
 
 export const generateUploadUrl = mutation({
-  args: {},
-  handler: async (ctx) => {
-    await requireAuth(ctx);
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    if (!args.clerkUserId) {
+      throw new Error("Not authenticated");
+    }
     return await ctx.storage.generateUploadUrl();
   },
 });
 
 // Get all images for a specific chain, ordered by step number
 export const list = query({
-  args: { chainId: v.id("imageChains") },
+  args: { chainId: v.id("imageChains"), clerkUserId: v.string() },
   handler: async (ctx, args) => {
-    const { chain } = await getChainForUser(ctx, args.chainId);
+    const chain = await ctx.db.get(args.chainId);
+    verifyChainOwnership(chain, args.clerkUserId);
     if (!chain) return [];
 
     const images = await ctx.db
@@ -83,13 +62,15 @@ export const list = query({
 
 // Get the current active chain (for now, just get the most recent one)
 export const getActiveChain = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await requireAuth(ctx);
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    if (!args.clerkUserId) {
+      return null;
+    }
     const chains = await ctx.db
       .query("imageChains")
       .withIndex("by_user_created", (q) =>
-        q.eq("userId", identity.subject),
+        q.eq("userId", args.clerkUserId),
       )
       .order("desc")
       .take(1);
@@ -104,13 +85,15 @@ export const getActiveChain = query({
 
 // Get all chains (for chain selector)
 export const listChains = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await requireAuth(ctx);
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    if (!args.clerkUserId) {
+      return [];
+    }
     const chains = await ctx.db
       .query("imageChains")
       .withIndex("by_user_created", (q) =>
-        q.eq("userId", identity.subject),
+        q.eq("userId", args.clerkUserId),
       )
       .order("desc")
       .collect();
@@ -126,13 +109,13 @@ export const listChains = query({
 
 // Get a specific chain
 export const getChain = query({
-  args: { chainId: v.id("imageChains") },
+  args: { chainId: v.id("imageChains"), clerkUserId: v.string() },
   handler: async (ctx, args) => {
-    const { chain } = await getChainForUser(ctx, args.chainId);
-    if (!chain) return null;
+    const chain = await ctx.db.get(args.chainId);
+    const verified = verifyChainOwnership(chain, args.clerkUserId);
     return {
-      ...chain,
-      originalUrl: await ctx.storage.getUrl(chain.originalStorageId),
+      ...verified,
+      originalUrl: await ctx.storage.getUrl(verified.originalStorageId),
     };
   },
 });
@@ -140,16 +123,19 @@ export const getChain = query({
 // Create a new image chain with an original image
 export const createChain = mutation({
   args: {
+    clerkUserId: v.string(),
     name: v.string(),
     originalStorageId: v.id("_storage"),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx);
+    if (!args.clerkUserId) {
+      throw new Error("Not authenticated");
+    }
     const now = Date.now();
     
     // Create the chain
     const chainId = await ctx.db.insert("imageChains", {
-      userId: identity.subject,
+      userId: args.clerkUserId,
       name: args.name,
       originalStorageId: args.originalStorageId,
       createdAt: now,
@@ -204,6 +190,7 @@ export const addImage = internalMutation({
 export const addEditedImage = mutation({
   args: {
     chainId: v.id("imageChains"),
+    clerkUserId: v.string(),
     storageId: v.id("_storage"),
     prompt: v.string(),
     editType: editTypeValidator,
@@ -213,7 +200,8 @@ export const addEditedImage = mutation({
     brightnessPercent: v.number(),
   },
   handler: async (ctx, args) => {
-    await requireChainOwner(ctx, args.chainId);
+    const chain = await ctx.db.get(args.chainId);
+    verifyChainOwnership(chain, args.clerkUserId);
     const imageId = await ctx.db.insert("images", {
       chainId: args.chainId,
       parentImageId: args.parentImageId,
@@ -259,9 +247,10 @@ export const internalGetImage = internalQuery({
 // Delete the most recent (highest stepNumber) image in a chain.
 // Step 0 (original) cannot be deleted via this mutation.
 export const deleteLastStep = mutation({
-  args: { chainId: v.id("imageChains") },
+  args: { chainId: v.id("imageChains"), clerkUserId: v.string() },
   handler: async (ctx, args) => {
-    await requireChainOwner(ctx, args.chainId);
+    const chain = await ctx.db.get(args.chainId);
+    verifyChainOwnership(chain, args.clerkUserId);
     const images = await ctx.db
       .query("images")
       .withIndex("by_chain", (q) => q.eq("chainId", args.chainId))
@@ -291,18 +280,15 @@ export const deleteLastStep = mutation({
 // Delete any leaf image (an image with no children).
 // Step 0 (original) cannot be deleted via this mutation.
 export const deleteLeafImage = mutation({
-  args: { imageId: v.id("images") },
+  args: { imageId: v.id("images"), clerkUserId: v.string() },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx);
     const image = await ctx.db.get(args.imageId);
     if (!image) {
       throw new Error("Image not found");
     }
 
     const chain = await ctx.db.get(image.chainId);
-    if (!chain || chain.userId !== identity.subject) {
-      throw new Error("Image not found");
-    }
+    verifyChainOwnership(chain, args.clerkUserId);
 
     if (image.stepNumber === 0) {
       throw new Error("Cannot delete original image");
@@ -333,13 +319,10 @@ export const deleteLeafImage = mutation({
 // Delete a chain and all of its images (including the original), then remove
 // the associated storage objects.
 export const deleteChain = mutation({
-  args: { chainId: v.id("imageChains") },
+  args: { chainId: v.id("imageChains"), clerkUserId: v.string() },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx);
     const chain = await ctx.db.get(args.chainId);
-    if (!chain || chain.userId !== identity.subject) {
-      throw new Error("Chain not found");
-    }
+    const verified = verifyChainOwnership(chain, args.clerkUserId);
 
     const images = await ctx.db
       .query("images")
@@ -347,8 +330,8 @@ export const deleteChain = mutation({
       .order("asc")
       .collect();
 
-    const storageIds = new Set<typeof chain.originalStorageId>();
-    storageIds.add(chain.originalStorageId);
+    const storageIds = new Set<typeof verified.originalStorageId>();
+    storageIds.add(verified.originalStorageId);
     for (const img of images) storageIds.add(img.storageId);
 
     for (const img of images) {

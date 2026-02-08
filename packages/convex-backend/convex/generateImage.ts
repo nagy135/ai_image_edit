@@ -66,6 +66,7 @@ Prompt:
 export const generateNextStep = action({
   args: {
     chainId: v.id("imageChains"),
+    clerkUserId: v.string(),
     sourceImageId: v.id("images"),
     prompt: v.string(),
     editType: v.union(
@@ -97,8 +98,7 @@ export const generateNextStep = action({
     storageId: Doc<"images">["storageId"];
     url: string | null;
   }> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
+    if (!args.clerkUserId) {
       throw new Error("Not authenticated");
     }
 
@@ -107,7 +107,7 @@ export const generateNextStep = action({
       chainId: args.chainId,
     })) as Doc<"imageChains"> | null;
 
-    if (!chain || chain.userId !== identity.subject) {
+    if (!chain || chain.userId !== args.clerkUserId) {
       throw new Error("Chain not found");
     }
 

@@ -10,6 +10,7 @@
     "generate": "convex codegen"
   },
   "dependencies": {
+    "@clerk/backend": "^2.30.1",
     "@openrouter/sdk": "^0.8.0",
     "convex": "^1.17.4"
   },

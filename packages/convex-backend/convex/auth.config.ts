@@ -2,9 +2,11 @@ import { AuthConfig } from "convex/server";
 
 const domain = process.env.CLERK_JWT_ISSUER_DOMAIN;
 
-if (!domain) {
+if (domain) {
+  console.log("[Auth Config] Using Clerk domain:", domain);
+} else {
   console.error(
-    "Missing CLERK_JWT_ISSUER_DOMAIN environment variable. " +
+    "[Auth Config] Missing CLERK_JWT_ISSUER_DOMAIN environment variable. " +
     "Set it in your .env.local file with your Clerk Frontend API URL."
   );
 }

@@ -107,28 +107,6 @@ function SignedOutView() {
 
         <main className="mt-10 grid gap-6 lg:grid-cols-[1.2fr_0.8fr] items-start">
           <section className="app-card rounded-3xl p-6 lg:p-8">
-            <h2 className="text-xl font-semibold">Keep every chain private</h2>
-            <p className="mt-2 text-sm text-[color:var(--app-muted)]">
-              Sign in to create a personal workspace. Each chain is locked to
-              your account and only visible to you.
-            </p>
-            <div className="mt-6 grid gap-3">
-              {[
-                "Upload original images and store every edit step.",
-                "Branch histories without losing your earlier versions.",
-                "Return to any project instantly from your dashboard.",
-              ].map((text) => (
-                <div
-                  key={text}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[color:var(--app-muted)]"
-                >
-                  {text}
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="app-card rounded-3xl p-6 lg:p-8">
             <h2 className="text-xl font-semibold">Ready to start?</h2>
             <p className="mt-2 text-sm text-[color:var(--app-muted)]">
               Sign in to unlock your personal chain library.
@@ -167,11 +145,11 @@ function SignedInApp() {
     setIsSynced(false);
     setSyncError(null);
 
-    const name = user.fullName ?? user.username ?? undefined;
+     const name = user.fullName ?? user.username ?? undefined;
     const email = user.primaryEmailAddress?.emailAddress ?? undefined;
     const imageUrl = user.imageUrl ?? undefined;
 
-    void upsertUser({ name, email, imageUrl })
+    void upsertUser({ clerkUserId: user.id, name, email, imageUrl })
       .then(() => {
         if (!cancelled) setIsSynced(true);
       })
@@ -221,6 +199,15 @@ function SignedInApp() {
 }
 
 function App() {
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { isSignedIn: clerkSignedIn } = useUser();
+
+  console.log("App auth state:", {
+    convexAuthenticated: isAuthenticated,
+    convexLoading: isLoading,
+    clerkSignedIn,
+  });
+
   return (
     <>
       <AuthLoading>
@@ -240,6 +227,9 @@ function App() {
 }
 
 function ImageEditorApp() {
+  const { user } = useUser();
+  const clerkUserId = user?.id || null;
+  
   // Slider state
   const [selectedImageId, setSelectedImageId] = useState<Id<"images"> | null>(
     null,
@@ -263,7 +253,7 @@ function ImageEditorApp() {
     handleDeleteLeafImage,
     fileInputRef,
     uploadDisabled,
-  } = useImageChain(false, selectedImageId, setSelectedImageId);
+  } = useImageChain(false, selectedImageId, setSelectedImageId, clerkUserId);
 
    // Image generation management
    const {
@@ -284,7 +274,8 @@ function ImageEditorApp() {
      () => getSelectedImage(images, selectedImageId),
      setSelectedImageId,
      selectedModel,
-   );
+     clerkUserId,
+    );
 
   const controlsDisabled = isGenerating;
 
@@ -707,10 +698,12 @@ function ImageEditorApp() {
                       max={200}
                       value={zoomLevel}
                       onChange={(e) => setZoomLevel(Number(e.target.value))}
-                       onPointerUp={() => {
-                         const base = getSelectedImage(images, selectedImageId)?.zoomPercent ?? 100;
-                         if (zoomLevel !== base) handleZoomRelease(zoomLevel);
-                       }}
+                      onPointerUp={() => {
+                        const base =
+                          getSelectedImage(images, selectedImageId)
+                            ?.zoomPercent ?? 100;
+                        if (zoomLevel !== base) handleZoomRelease(zoomLevel);
+                      }}
                       disabled={controlsDisabled}
                       style={{
                         background: `linear-gradient(90deg, rgba(45,212,191,0.95) 0%, rgba(163,230,53,0.90) ${(zoomLevel / 200) * 100}%, rgba(255,255,255,0.14) ${(zoomLevel / 200) * 100}%, rgba(255,255,255,0.14) 100%)`,
@@ -735,12 +728,13 @@ function ImageEditorApp() {
                       onChange={(e) =>
                         setBrightnessLevel(Number(e.target.value))
                       }
-                       onPointerUp={() => {
-                         const base =
-                           getSelectedImage(images, selectedImageId)?.brightnessPercent ?? 100;
-                         if (brightnessLevel !== base)
-                           handleBrightnessRelease(brightnessLevel);
-                       }}
+                      onPointerUp={() => {
+                        const base =
+                          getSelectedImage(images, selectedImageId)
+                            ?.brightnessPercent ?? 100;
+                        if (brightnessLevel !== base)
+                          handleBrightnessRelease(brightnessLevel);
+                      }}
                       disabled={controlsDisabled}
                       style={{
                         background: `linear-gradient(90deg, rgba(45,212,191,0.95) 0%, rgba(163,230,53,0.90) ${(brightnessLevel / 200) * 100}%, rgba(255,255,255,0.14) ${(brightnessLevel / 200) * 100}%, rgba(255,255,255,0.14) 100%)`,
@@ -1036,242 +1030,245 @@ function ImageEditorApp() {
             </section>
           </div>
 
-           {/* Right sidebar: Tools (hidden on mobile, shown on large screens) */}
-           <aside className="hidden lg:block space-y-5">
-              <section className="app-card rounded-3xl p-5">
-                <div className="flex items-center justify-between gap-3 mb-4">
-                  <h2 className="text-sm font-semibold">Generation mode</h2>
-                  <Button
-                    type="button"
-                    onClick={handleBatchGenerate}
-                    disabled={
-                      controlsDisabled ||
-                      !isBatchMode ||
-                      pendingPrompts.length === 0
-                    }
-                    variant="ghost"
-                    className="h-auto rounded-full px-3 py-1 text-xs font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Generate
-                  </Button>
-                </div>
+          {/* Right sidebar: Tools (hidden on mobile, shown on large screens) */}
+          <aside className="hidden lg:block space-y-5">
+            <section className="app-card rounded-3xl p-5">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h2 className="text-sm font-semibold">Generation mode</h2>
+                <Button
+                  type="button"
+                  onClick={handleBatchGenerate}
+                  disabled={
+                    controlsDisabled ||
+                    !isBatchMode ||
+                    pendingPrompts.length === 0
+                  }
+                  variant="ghost"
+                  className="h-auto rounded-full px-3 py-1 text-xs font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Generate
+                </Button>
+              </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-medium text-gray-300 block mb-2">
-                      Mode
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-[color:var(--app-muted)]">
-                        Oneshot
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (controlsDisabled) return;
-                          setIsBatchMode((prev) => !prev);
-                          setPendingPrompts([]);
-                        }}
-                        disabled={controlsDisabled}
-                        className={`relative h-6 w-11 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                          isBatchMode
-                            ? "bg-teal-400/80 border-teal-200/60"
-                            : "bg-white/10 border-white/20"
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-medium text-gray-300 block mb-2">
+                    Mode
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[color:var(--app-muted)]">
+                      Oneshot
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (controlsDisabled) return;
+                        setIsBatchMode((prev) => !prev);
+                        setPendingPrompts([]);
+                      }}
+                      disabled={controlsDisabled}
+                      className={`relative h-6 w-11 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                        isBatchMode
+                          ? "bg-teal-400/80 border-teal-200/60"
+                          : "bg-white/10 border-white/20"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                          isBatchMode ? "left-5" : "left-0.5"
                         }`}
-                      >
-                        <span
-                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-                            isBatchMode ? "left-5" : "left-0.5"
-                          }`}
-                        />
-                      </button>
-                      <span className="text-xs text-[color:var(--app-muted)]">
-                        Batch
-                      </span>
-                      <span className="text-xs text-[color:var(--app-faint)] ml-auto">
-                        {isBatchMode
-                          ? `Queued: ${pendingPrompts.length}`
-                          : "Runs instantly"}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-medium text-gray-300 block mb-2">
-                      Model
-                    </label>
-                     <Select value={selectedModel} onValueChange={setSelectedModel}>
-                       <SelectTrigger className="w-full">
-                         <SelectValue />
-                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="gemini-2.5-flash-image">
-                          Gemini 2.5 Flash
-                        </SelectItem>
-                        <SelectItem value="gemini-3-pro-image-preview">
-                          Gemini 3 Pro Preview
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </section>
-
-             <section className="app-card rounded-3xl p-5">
-               <h2 className="text-sm font-semibold">Quick tools</h2>
-               <p className="mt-1 text-sm text-[color:var(--app-muted)]">
-                 One-click edits{" "}
-                 {isBatchMode ? "queue prompts" : "generate a new step"}.
-               </p>
-               <div className="mt-4 grid grid-cols-3 gap-1.5">
-                 {/* Row 1: Position */}
-                 <PositionButton
-                   onClick={handleAlignLeftClick}
-                   disabled={controlsDisabled}
-                   label="Left"
-                   icon={AlignLeft}
-                   toneClassName="bg-gradient-to-r from-sky-400/90 to-cyan-300/90 hover:from-sky-300 hover:to-cyan-200"
-                 />
-                 <PositionButton
-                   onClick={handleCenterClick}
-                   disabled={controlsDisabled}
-                   label="Center"
-                   icon={Focus}
-                   toneClassName="bg-gradient-to-r from-teal-400/90 to-lime-300/90 hover:from-teal-300 hover:to-lime-200"
-                 />
-                 <PositionButton
-                   onClick={handleAlignRightClick}
-                   disabled={controlsDisabled}
-                   label="Right"
-                   icon={AlignRight}
-                   toneClassName="bg-gradient-to-r from-rose-400/90 to-amber-300/90 hover:from-rose-300 hover:to-amber-200"
-                 />
-                 {/* Row 2: Age */}
-                 <PositionButton
-                   onClick={handleMakeOlder}
-                   disabled={controlsDisabled}
-                   label="Old"
-                   icon={Sparkles}
-                   toneClassName="bg-gradient-to-r from-amber-500/90 to-orange-400/90 hover:from-amber-400 hover:to-orange-300"
-                 />
-                 <PositionButton
-                   onClick={handleMakeYoung}
-                   disabled={controlsDisabled}
-                   label="Young"
-                   icon={Baby}
-                   toneClassName="bg-gradient-to-r from-pink-400/90 to-rose-300/90 hover:from-pink-300 hover:to-rose-200"
-                 />
-                 <PositionButton
-                   onClick={handleDuplicateObject}
-                   disabled={controlsDisabled}
-                   label="Duplicate"
-                   icon={Copy}
-                   toneClassName="bg-gradient-to-r from-emerald-500/90 to-teal-400/90 hover:from-emerald-400 hover:to-teal-300"
-                 />
-                 {/* Row 3: Background & Shape */}
-                 <PositionButton
-                   onClick={handleDeleteBackground}
-                   disabled={controlsDisabled}
-                   label="Remove BG"
-                   icon={Eraser}
-                   toneClassName="bg-gradient-to-r from-red-500/90 to-pink-400/90 hover:from-red-400 hover:to-pink-300"
-                 />
-                 <PositionButton
-                   onClick={handleAddBackground}
-                   disabled={controlsDisabled}
-                   label="Add BG"
-                   icon={ImagePlus}
-                   toneClassName="bg-gradient-to-r from-indigo-500/90 to-purple-400/90 hover:from-indigo-400 hover:to-purple-300"
-                 />
-                 <PositionButton
-                   onClick={handleRemoveObject}
-                   disabled={controlsDisabled}
-                   label="Clean Up"
-                   icon={Trash2}
-                   toneClassName="bg-gradient-to-r from-slate-500/90 to-gray-400/90 hover:from-slate-400 hover:to-gray-300"
-                 />
-                 {/* Row 4: Shape */}
-                 <PositionButton
-                   onClick={handleMakeSquare}
-                   disabled={controlsDisabled}
-                   label="Square"
-                   icon={Square}
-                   toneClassName="bg-gradient-to-r from-violet-500/90 to-purple-400/90 hover:from-violet-400 hover:to-purple-300"
-                 />
-                 <PositionButton
-                   onClick={handleMakeCircular}
-                   disabled={controlsDisabled}
-                   label="Circular"
-                   icon={Circle}
-                   toneClassName="bg-gradient-to-r from-fuchsia-500/90 to-pink-400/90 hover:from-fuchsia-400 hover:to-pink-300"
-                 />
-               </div>
-              </section>
-
-              <section className="app-card rounded-3xl p-5">
-               <div className="flex items-center justify-between gap-3">
-                 <h2 className="text-sm font-semibold">Adjustments</h2>
-                 <span className="app-badge rounded-full px-3 py-1 text-xs text-[color:var(--app-muted)]">
-                   {isBatchMode ? "Release to queue" : "Release to apply"}
-                 </span>
-               </div>
-
-               <div className="mt-5 space-y-6">
-                 <EditSlider
-                   label="Zoom"
-                   value={zoomLevel}
-                   onChange={setZoomLevel}
-                   onRelease={handleZoomRelease}
-                   disabled={controlsDisabled}
-                 />
-                 <EditSlider
-                   label="Brightness"
-                   value={brightnessLevel}
-                   onChange={setBrightnessLevel}
-                   onRelease={handleBrightnessRelease}
-                   disabled={controlsDisabled}
-                 />
-                </div>
-              </section>
-
-              <section className="app-card rounded-3xl p-5">
-                <h2 className="text-sm font-semibold">Describe an edit</h2>
-                <p className="mt-1 text-xs text-[color:var(--app-muted)]">
-                  {isBatchMode
-                    ? "Add multiple prompts, then generate once."
-                    : "Submit to generate immediately."}
-                </p>
-                <div className="mt-4">
-                  <textarea
-                    value={manualPrompt}
-                    onChange={(e) => setManualPrompt(e.target.value)}
-                    placeholder="Describe an edit"
-                    rows={4}
-                    disabled={controlsDisabled}
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/90 placeholder:text-white/40 focus:outline-none focus:ring-0 app-focus disabled:opacity-50"
-                  />
-                  <div className="mt-3 flex items-end justify-between gap-2">
-                    <span className="text-xs text-[color:var(--app-faint)]">
+                      />
+                    </button>
+                    <span className="text-xs text-[color:var(--app-muted)]">
+                      Batch
+                    </span>
+                    <span className="text-xs text-[color:var(--app-faint)] ml-auto">
                       {isBatchMode
                         ? `Queued: ${pendingPrompts.length}`
-                        : "Press button to generate"}
+                        : "Runs instantly"}
                     </span>
-                    <Button
-                      type="button"
-                      onClick={handleManualSubmit}
-                      disabled={
-                        controlsDisabled || manualPrompt.trim().length === 0
-                      }
-                      variant="ghost"
-                      className="h-auto rounded-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isBatchMode ? "Add prompt" : "Generate"}
-                    </Button>
                   </div>
                 </div>
-              </section>
-            </aside>
-         </main>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-300 block mb-2">
+                    Model
+                  </label>
+                  <Select
+                    value={selectedModel}
+                    onValueChange={setSelectedModel}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gemini-2.5-flash-image">
+                        Gemini 2.5 Flash
+                      </SelectItem>
+                      <SelectItem value="gemini-3-pro-image-preview">
+                        Gemini 3 Pro Preview
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </section>
+
+            <section className="app-card rounded-3xl p-5">
+              <h2 className="text-sm font-semibold">Quick tools</h2>
+              <p className="mt-1 text-sm text-[color:var(--app-muted)]">
+                One-click edits{" "}
+                {isBatchMode ? "queue prompts" : "generate a new step"}.
+              </p>
+              <div className="mt-4 grid grid-cols-3 gap-1.5">
+                {/* Row 1: Position */}
+                <PositionButton
+                  onClick={handleAlignLeftClick}
+                  disabled={controlsDisabled}
+                  label="Left"
+                  icon={AlignLeft}
+                  toneClassName="bg-gradient-to-r from-sky-400/90 to-cyan-300/90 hover:from-sky-300 hover:to-cyan-200"
+                />
+                <PositionButton
+                  onClick={handleCenterClick}
+                  disabled={controlsDisabled}
+                  label="Center"
+                  icon={Focus}
+                  toneClassName="bg-gradient-to-r from-teal-400/90 to-lime-300/90 hover:from-teal-300 hover:to-lime-200"
+                />
+                <PositionButton
+                  onClick={handleAlignRightClick}
+                  disabled={controlsDisabled}
+                  label="Right"
+                  icon={AlignRight}
+                  toneClassName="bg-gradient-to-r from-rose-400/90 to-amber-300/90 hover:from-rose-300 hover:to-amber-200"
+                />
+                {/* Row 2: Age */}
+                <PositionButton
+                  onClick={handleMakeOlder}
+                  disabled={controlsDisabled}
+                  label="Old"
+                  icon={Sparkles}
+                  toneClassName="bg-gradient-to-r from-amber-500/90 to-orange-400/90 hover:from-amber-400 hover:to-orange-300"
+                />
+                <PositionButton
+                  onClick={handleMakeYoung}
+                  disabled={controlsDisabled}
+                  label="Young"
+                  icon={Baby}
+                  toneClassName="bg-gradient-to-r from-pink-400/90 to-rose-300/90 hover:from-pink-300 hover:to-rose-200"
+                />
+                <PositionButton
+                  onClick={handleDuplicateObject}
+                  disabled={controlsDisabled}
+                  label="Duplicate"
+                  icon={Copy}
+                  toneClassName="bg-gradient-to-r from-emerald-500/90 to-teal-400/90 hover:from-emerald-400 hover:to-teal-300"
+                />
+                {/* Row 3: Background & Shape */}
+                <PositionButton
+                  onClick={handleDeleteBackground}
+                  disabled={controlsDisabled}
+                  label="Remove BG"
+                  icon={Eraser}
+                  toneClassName="bg-gradient-to-r from-red-500/90 to-pink-400/90 hover:from-red-400 hover:to-pink-300"
+                />
+                <PositionButton
+                  onClick={handleAddBackground}
+                  disabled={controlsDisabled}
+                  label="Add BG"
+                  icon={ImagePlus}
+                  toneClassName="bg-gradient-to-r from-indigo-500/90 to-purple-400/90 hover:from-indigo-400 hover:to-purple-300"
+                />
+                <PositionButton
+                  onClick={handleRemoveObject}
+                  disabled={controlsDisabled}
+                  label="Clean Up"
+                  icon={Trash2}
+                  toneClassName="bg-gradient-to-r from-slate-500/90 to-gray-400/90 hover:from-slate-400 hover:to-gray-300"
+                />
+                {/* Row 4: Shape */}
+                <PositionButton
+                  onClick={handleMakeSquare}
+                  disabled={controlsDisabled}
+                  label="Square"
+                  icon={Square}
+                  toneClassName="bg-gradient-to-r from-violet-500/90 to-purple-400/90 hover:from-violet-400 hover:to-purple-300"
+                />
+                <PositionButton
+                  onClick={handleMakeCircular}
+                  disabled={controlsDisabled}
+                  label="Circular"
+                  icon={Circle}
+                  toneClassName="bg-gradient-to-r from-fuchsia-500/90 to-pink-400/90 hover:from-fuchsia-400 hover:to-pink-300"
+                />
+              </div>
+            </section>
+
+            <section className="app-card rounded-3xl p-5">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold">Adjustments</h2>
+                <span className="app-badge rounded-full px-3 py-1 text-xs text-[color:var(--app-muted)]">
+                  {isBatchMode ? "Release to queue" : "Release to apply"}
+                </span>
+              </div>
+
+              <div className="mt-5 space-y-6">
+                <EditSlider
+                  label="Zoom"
+                  value={zoomLevel}
+                  onChange={setZoomLevel}
+                  onRelease={handleZoomRelease}
+                  disabled={controlsDisabled}
+                />
+                <EditSlider
+                  label="Brightness"
+                  value={brightnessLevel}
+                  onChange={setBrightnessLevel}
+                  onRelease={handleBrightnessRelease}
+                  disabled={controlsDisabled}
+                />
+              </div>
+            </section>
+
+            <section className="app-card rounded-3xl p-5">
+              <h2 className="text-sm font-semibold">Describe an edit</h2>
+              <p className="mt-1 text-xs text-[color:var(--app-muted)]">
+                {isBatchMode
+                  ? "Add multiple prompts, then generate once."
+                  : "Submit to generate immediately."}
+              </p>
+              <div className="mt-4">
+                <textarea
+                  value={manualPrompt}
+                  onChange={(e) => setManualPrompt(e.target.value)}
+                  placeholder="Describe an edit"
+                  rows={4}
+                  disabled={controlsDisabled}
+                  className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/90 placeholder:text-white/40 focus:outline-none focus:ring-0 app-focus disabled:opacity-50"
+                />
+                <div className="mt-3 flex items-end justify-between gap-2">
+                  <span className="text-xs text-[color:var(--app-faint)]">
+                    {isBatchMode
+                      ? `Queued: ${pendingPrompts.length}`
+                      : "Press button to generate"}
+                  </span>
+                  <Button
+                    type="button"
+                    onClick={handleManualSubmit}
+                    disabled={
+                      controlsDisabled || manualPrompt.trim().length === 0
+                    }
+                    variant="ghost"
+                    className="h-auto rounded-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isBatchMode ? "Add prompt" : "Generate"}
+                  </Button>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </main>
       </div>
     </div>
   );
