@@ -9,6 +9,18 @@ export type ChainDoc = Doc<"imageChains">;
 export type ImageWithUrl = ImageDoc & { url: string | null };
 export type ChainWithUrl = ChainDoc & { originalUrl: string | null };
 
+export type ChainOwnerSummary = {
+  clerkUserId: string;
+  name?: string;
+  email?: string;
+  imageUrl?: string;
+  isAdmin: boolean;
+};
+
+export type AdminChainWithUrl = ChainWithUrl & {
+  owner: ChainOwnerSummary | null;
+};
+
 // Edit type from the image document
 export type EditType = ImageDoc["editType"];
 

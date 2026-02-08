@@ -102,17 +102,14 @@ export const generateNextStep = action({
       throw new Error("Not authenticated");
     }
 
-    // Decrement credits before generation
-    await ctx.runMutation(internal.users.decrementCredits, {
-      clerkUserId: args.clerkUserId,
-    });
-
     // Load chain + images
     const chain = (await ctx.runQuery(internal.images.internalGetChain, {
       chainId: args.chainId,
     })) as Doc<"imageChains"> | null;
 
-    if (!chain || chain.userId !== args.clerkUserId) {
+    // Shared access: anyone with the chainId can generate new steps.
+    // Credits are always deducted from the caller (args.clerkUserId).
+    if (!chain) {
       throw new Error("Chain not found");
     }
 
@@ -152,6 +149,11 @@ export const generateNextStep = action({
     if (requestedSource.chainId !== args.chainId) {
       throw new Error("Source image does not belong to chain");
     }
+
+    // Decrement credits once we know the request is valid.
+    await ctx.runMutation(internal.users.decrementCredits, {
+      clerkUserId: args.clerkUserId,
+    });
 
     const parentImage = requestedSource;
     const includeParentImage = parentImage.stepNumber >= 1;

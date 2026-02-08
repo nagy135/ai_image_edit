@@ -8,6 +8,8 @@ export default defineSchema({
     name: v.optional(v.string()),
     email: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
+    // Admins are granted extra visibility in the UI (set manually in DB).
+    isAdmin: v.optional(v.boolean()),
     credits: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -20,7 +22,9 @@ export default defineSchema({
     name: v.string(),
     originalStorageId: v.id("_storage"),
     createdAt: v.number(),
-  }).index("by_user_created", ["userId", "createdAt"]),
+  })
+    .index("by_user_created", ["userId", "createdAt"])
+    .index("by_created", ["createdAt"]),
   
   images: defineTable({
     chainId: v.id("imageChains"),

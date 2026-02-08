@@ -41,8 +41,13 @@ export const generateUploadUrl = mutation({
 export const list = query({
   args: { chainId: v.id("imageChains"), clerkUserId: v.string() },
   handler: async (ctx, args) => {
+    if (!args.clerkUserId) {
+      return [];
+    }
+
+    // Shared access: anyone who knows the chainId can view the chain.
+    // Owner-only operations remain protected in mutations.
     const chain = await ctx.db.get(args.chainId);
-    verifyChainOwnership(chain, args.clerkUserId);
     if (!chain) return [];
 
     const images = await ctx.db
@@ -111,12 +116,72 @@ export const listChains = query({
 export const getChain = query({
   args: { chainId: v.id("imageChains"), clerkUserId: v.string() },
   handler: async (ctx, args) => {
+    if (!args.clerkUserId) {
+      return null;
+    }
+
+    // Shared access: anyone who knows the chainId can fetch the chain.
     const chain = await ctx.db.get(args.chainId);
-    const verified = verifyChainOwnership(chain, args.clerkUserId);
+    if (!chain) return null;
+
     return {
-      ...verified,
-      originalUrl: await ctx.storage.getUrl(verified.originalStorageId),
+      ...chain,
+      originalUrl: await ctx.storage.getUrl(chain.originalStorageId),
     };
+  },
+});
+
+// Admin-only: list other users' chains for discovery/debugging.
+export const listAllChainsAdmin = query({
+  args: {
+    clerkUserId: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    if (!args.clerkUserId) {
+      return [];
+    }
+
+    const me = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", args.clerkUserId))
+      .unique();
+
+    if (!me?.isAdmin) {
+      return [];
+    }
+
+    const limit = Math.min(Math.max(args.limit ?? 48, 1), 200);
+
+    const chains = await ctx.db
+      .query("imageChains")
+      .withIndex("by_created", (q) => q)
+      .order("desc")
+      .filter((q) => q.neq(q.field("userId"), args.clerkUserId))
+      .take(limit);
+
+    return await Promise.all(
+      chains.map(async (c) => {
+        const owner = await ctx.db
+          .query("users")
+          .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", c.userId))
+          .unique();
+
+        return {
+          ...c,
+          originalUrl: await ctx.storage.getUrl(c.originalStorageId),
+          owner: owner
+            ? {
+                clerkUserId: owner.clerkUserId,
+                name: owner.name,
+                email: owner.email,
+                imageUrl: owner.imageUrl,
+                isAdmin: owner.isAdmin ?? false,
+              }
+            : null,
+        };
+      }),
+    );
   },
 });
 

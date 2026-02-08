@@ -18,10 +18,13 @@ import {
 import {
   AlignLeft,
   AlignRight,
+  ArrowLeft,
   Baby,
   Circle,
   Copy,
   CornerDownRight,
+  Link2,
+  Download,
   Eraser,
   Focus,
   ImagePlus,
@@ -47,7 +50,8 @@ import {
   navigateHistoryTree,
 } from "./utils";
 import { APP_SHELL_STYLE, EDIT_TYPE_ICON_MAP, PROMPTS } from "./constants";
-import type { Id } from "./types";
+import type { AdminChainWithUrl, Id, ImageWithUrl } from "./types";
+import { useImageViewerStore } from "./stores/useImageViewerStore";
 
 function AuthLoadingView({
   title,
@@ -217,13 +221,24 @@ function ImageEditorApp() {
   const { user } = useUser();
   const clerkUserId = user?.id || null;
 
+  const imageViewerMode = useImageViewerStore((s) => s.mode);
+  const setImageViewerMode = useImageViewerStore((s) => s.setMode);
+  const [alternateShowingOriginal, setAlternateShowingOriginal] =
+    useState(false);
+
   // Fetch user credits
   const currentUser = useQuery(
     api.users.getCurrentUser,
-    clerkUserId ? { clerkUserId } : "skip"
+    clerkUserId ? { clerkUserId } : "skip",
   );
   const credits = currentUser?.credits ?? 0;
   const hasCredits = credits > 0;
+  const isAdmin = (currentUser?.isAdmin ?? false) === true;
+
+  const adminChains = useQuery(
+    api.images.listAllChainsAdmin,
+    isAdmin && clerkUserId ? { clerkUserId, limit: 48 } : "skip",
+  ) as AdminChainWithUrl[] | undefined;
 
   // Slider state
   const [selectedImageId, setSelectedImageId] = useState<Id<"images"> | null>(
@@ -250,30 +265,45 @@ function ImageEditorApp() {
     uploadDisabled,
   } = useImageChain(false, selectedImageId, setSelectedImageId, clerkUserId);
 
-   // Image generation management
-   const {
-     isGenerating,
-     activePrompt,
-     isBatchMode,
-     pendingPrompts,
-     manualPrompt,
-     generateImage,
-     enqueuePrompt,
-     handleBatchGenerate,
-     setIsBatchMode,
-     setManualPrompt,
-     setPendingPrompts,
-   } = useImageGeneration(
-     currentChainId,
-     images,
-     () => getSelectedImage(images, selectedImageId),
-     setSelectedImageId,
-     selectedModel,
-     clerkUserId,
-     hasCredits,
-   );
+  // Image generation management
+  const {
+    isGenerating,
+    activePrompt,
+    isBatchMode,
+    pendingPrompts,
+    manualPrompt,
+    generateImage,
+    enqueuePrompt,
+    handleBatchGenerate,
+    setIsBatchMode,
+    setManualPrompt,
+    setPendingPrompts,
+  } = useImageGeneration(
+    currentChainId,
+    images,
+    () => getSelectedImage(images, selectedImageId),
+    setSelectedImageId,
+    selectedModel,
+    clerkUserId,
+    hasCredits,
+  );
 
-   const controlsDisabled = isGenerating || !hasCredits;
+  const controlsDisabled = isGenerating || !hasCredits;
+
+  // Image action states (copy/download)
+  const [copyState, setCopyState] = useState<
+    "idle" | "copying" | "copied" | "error"
+  >("idle");
+  const [downloadState, setDownloadState] = useState<
+    "idle" | "downloading" | "done" | "error"
+  >("idle");
+  const [imageActionMessage, setImageActionMessage] = useState<string | null>(
+    null,
+  );
+
+  useEffect(() => {
+    setAlternateShowingOriginal(false);
+  }, [selectedImageId, imageViewerMode]);
 
   // Sync slider state with selected image
   useEffect(() => {
@@ -284,75 +314,285 @@ function ImageEditorApp() {
     setBrightnessLevel(img.brightnessPercent ?? 100);
   }, [images, selectedImageId]);
 
-   // Auto-select latest image
-   useEffect(() => {
-     if (!images || images.length === 0) return;
-     setSelectedImageId((prev) => {
-       if (prev && images.some((img) => img._id === prev)) return prev;
-       const latest = getLatestImage(images);
-       return latest?._id ?? null;
-     });
-   }, [images]);
+  // Auto-select latest image
+  useEffect(() => {
+    if (!images || images.length === 0) return;
+    setSelectedImageId((prev) => {
+      if (prev && images.some((img) => img._id === prev)) return prev;
+      const latest = getLatestImage(images);
+      return latest?._id ?? null;
+    });
+  }, [images]);
 
-   // Keyboard navigation for history
-   useEffect(() => {
-     const handleKeyDown = (e: KeyboardEvent) => {
-       if (!images || images.length === 0 || controlsDisabled) return;
+  // Keyboard navigation for history
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!images || images.length === 0 || controlsDisabled) return;
 
-       // Map arrow keys to directions
-       let direction: "up" | "down" | "left" | "right" | null = null;
+      // Map arrow keys to directions
+      let direction: "up" | "down" | "left" | "right" | null = null;
 
-       if (e.key === "ArrowUp") {
-         direction = "up";
-       } else if (e.key === "ArrowDown") {
-         direction = "down";
-       } else if (e.key === "ArrowLeft") {
-         direction = "left";
-       } else if (e.key === "ArrowRight") {
-         direction = "right";
-       }
+      if (e.key === "ArrowUp") {
+        direction = "up";
+      } else if (e.key === "ArrowDown") {
+        direction = "down";
+      } else if (e.key === "ArrowLeft") {
+        direction = "left";
+      } else if (e.key === "ArrowRight") {
+        direction = "right";
+      }
 
-       if (direction) {
-         e.preventDefault();
-         const newImageId = navigateHistoryTree(
-           selectedImageId,
-           images,
-           direction
-         );
-         if (newImageId) {
-           setSelectedImageId(newImageId);
-         }
-       }
-     };
+      if (direction) {
+        e.preventDefault();
+        const newImageId = navigateHistoryTree(
+          selectedImageId,
+          images,
+          direction,
+        );
+        if (newImageId) {
+          setSelectedImageId(newImageId);
+        }
+      }
+    };
 
-     window.addEventListener("keydown", handleKeyDown);
-     return () => {
-       window.removeEventListener("keydown", handleKeyDown);
-     };
-   }, [selectedImageId, images, controlsDisabled]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedImageId, images, controlsDisabled]);
 
-   // Show upload view when no chain selected
-   if (showUpload || !currentChainId || !images || images.length === 0) {
-     return (
-       <UploadView
-         allChains={allChains}
-         uploadDisabled={uploadDisabled}
-         credits={credits}
-         fileInputRef={fileInputRef}
-         onDrop={handleDrop}
-         onFileInputChange={handleFileInputChange}
-         onSelectChain={handleSelectChain}
-       />
-     );
-   }
+  // Reset image action states when image changes
+  useEffect(() => {
+    const currentImage = getSelectedImage(images, selectedImageId);
+    if (!currentImage) return;
+    setCopyState("idle");
+    setDownloadState("idle");
+    setImageActionMessage(null);
+  }, [selectedImageId, images]);
+
+  // Show upload view when no chain selected
+  if (showUpload || !currentChainId || !images || images.length === 0) {
+    return (
+      <UploadView
+        allChains={allChains}
+        adminChains={adminChains}
+        isAdmin={isAdmin}
+        uploadDisabled={uploadDisabled}
+        credits={credits}
+        fileInputRef={fileInputRef}
+        onDrop={handleDrop}
+        onFileInputChange={handleFileInputChange}
+        onSelectChain={handleSelectChain}
+      />
+    );
+  }
 
   const currentImage = getSelectedImage(images, selectedImageId);
   if (!currentImage) {
     return null;
   }
 
-  const latestImage = getLatestImage(images);
-  const latestStepNumber = latestImage?.stepNumber ?? 0;
+  const isOwner = (chain?.userId ?? null) === (clerkUserId ?? null);
+
+  const originalImage =
+    images.find((img) => img.stepNumber === 0) ?? currentImage;
+  const canCompareWithOriginal = originalImage._id !== currentImage._id;
+
+  const renderViewerImage = (
+    image: ImageWithUrl,
+    opts?: {
+      showOriginalBadge?: boolean;
+      label?: string;
+      imageClassName?: string;
+    },
+  ) => {
+    return (
+      <div className="relative rounded-xl border border-white/10 bg-black/20 overflow-hidden">
+        <img
+          src={getImageUrl(image.url ?? "", image.createdAt)}
+          alt={
+            opts?.showOriginalBadge
+              ? `Original (Step ${image.stepNumber})`
+              : `Step ${image.stepNumber}`
+          }
+          className={
+            opts?.imageClassName ??
+            "w-full h-auto max-h-[52vh] lg:max-h-[56vh] object-contain"
+          }
+        />
+        {(opts?.showOriginalBadge ?? false) && (
+          <span className="absolute left-2 top-2 app-badge rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 bg-black/60 border border-white/15 backdrop-blur">
+            ORIGINAL
+          </span>
+        )}
+        {opts?.label && (
+          <span className="absolute right-2 bottom-2 app-badge rounded-full px-2 py-0.5 text-[10px] text-[color:var(--app-muted)] bg-black/60 border border-white/10 backdrop-blur">
+            {opts.label}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+   const latestImage = getLatestImage(images);
+   const latestStepNumber = latestImage?.stepNumber ?? 0;
+
+   const currentImageSrc = currentImage.url
+     ? getImageUrl(currentImage.url, currentImage.createdAt)
+     : "";
+
+  const showImageActionMessage = (message: string) => {
+    setImageActionMessage(message);
+    window.setTimeout(() => {
+      setImageActionMessage(null);
+    }, 1800);
+  };
+
+  const handleShareLink = async () => {
+    if (!currentChainId) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("chainId", String(currentChainId));
+    const text = url.toString();
+    try {
+      await navigator.clipboard.writeText(text);
+      showImageActionMessage("Copied share link");
+    } catch (error) {
+      console.error("Share failed:", error);
+      // Fallback that works even when clipboard is blocked.
+      window.prompt("Copy this link:", text);
+    }
+  };
+
+    const handleCopyCurrentImage = async () => {
+      // Get the image URL directly from currentImage at click time
+      const imageSrc = currentImage.url
+        ? getImageUrl(currentImage.url, currentImage.createdAt)
+        : "";
+      
+      if (!imageSrc) return;
+
+      setCopyState("copying");
+      try {
+        // Load image into canvas to convert to PNG (clipboard only reliably supports PNG)
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        
+        const loadPromise = new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error("Failed to load image"));
+        });
+        
+        img.src = imageSrc;
+        await loadPromise;
+
+        // Draw to canvas and convert to PNG blob
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          throw new Error("Failed to get canvas context");
+        }
+        ctx.drawImage(img, 0, 0);
+
+        const pngBlob = await new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob(
+            (blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error("Failed to create PNG blob"));
+            },
+            "image/png"
+          );
+        });
+
+        // Copy PNG to clipboard
+        const ClipboardItemCtor = (window as any).ClipboardItem;
+        if (navigator.clipboard?.write && ClipboardItemCtor) {
+          const clipboardItem = new ClipboardItemCtor({
+            "image/png": pngBlob,
+          });
+          await navigator.clipboard.write([clipboardItem]);
+          setCopyState("copied");
+          showImageActionMessage("Copied image to clipboard");
+          return;
+        }
+
+        throw new Error("Clipboard API write not available");
+      } catch (error) {
+        console.error("Copy failed:", error);
+        setCopyState("error");
+        showImageActionMessage("Failed to copy image");
+      } finally {
+        window.setTimeout(() => {
+          setCopyState("idle");
+        }, 1500);
+      }
+    };
+
+   const handleDownloadCurrentImage = async () => {
+     // Get the image URL directly from currentImage at click time
+     const imageSrc = currentImage.url
+       ? getImageUrl(currentImage.url, currentImage.createdAt)
+       : "";
+     
+     if (!imageSrc) return;
+
+     setDownloadState("downloading");
+     try {
+       const response = await fetch(imageSrc, {
+         credentials: "include",
+       });
+       if (!response.ok) {
+         throw new Error(`Failed to fetch image: ${response.status}`);
+       }
+       const blob = await response.blob();
+
+       const safeBaseName = (chain?.name ?? "image").trim() || "image";
+       const safeName = safeBaseName
+         .replace(/[^a-zA-Z0-9._-]+/g, "_")
+         .replace(/^_+|_+$/g, "");
+       const ext =
+         blob.type === "image/jpeg"
+           ? "jpg"
+           : blob.type === "image/webp"
+             ? "webp"
+             : "png";
+       const fileName = `${safeName || "image"}-step-${currentImage.stepNumber}.${ext}`;
+
+       const objectUrl = URL.createObjectURL(blob);
+       const a = document.createElement("a");
+       a.href = objectUrl;
+       a.download = fileName;
+       document.body.appendChild(a);
+       a.click();
+       a.remove();
+       URL.revokeObjectURL(objectUrl);
+
+       setDownloadState("done");
+       showImageActionMessage(`Downloaded ${fileName}`);
+     } catch (error) {
+       console.error("Download failed:", error);
+       try {
+         const a = document.createElement("a");
+         a.href = imageSrc;
+         a.target = "_blank";
+         a.rel = "noopener noreferrer";
+         document.body.appendChild(a);
+         a.click();
+         a.remove();
+         setDownloadState("done");
+         showImageActionMessage("Opened image in a new tab");
+       } catch (innerError) {
+         console.error("Download fallback failed:", innerError);
+         setDownloadState("error");
+         showImageActionMessage("Download failed");
+       }
+     } finally {
+       window.setTimeout(() => {
+         setDownloadState("idle");
+       }, 1200);
+     }
+   };
 
   // Quick tool handlers
   const handleCenterClick = async () => {
@@ -572,25 +812,38 @@ function ImageEditorApp() {
       style={APP_SHELL_STYLE}
     >
       <div className="mx-auto max-w-6xl app-anim-in">
-        <header className="flex flex-wrap items-center justify-between gap-2 lg:gap-4">
-          <div className="flex items-center gap-2 lg:gap-3">
-            <div className="h-8 w-8 lg:h-10 lg:w-10 rounded-xl lg:rounded-2xl bg-gradient-to-br from-teal-400 to-lime-300 shadow-[0_18px_40px_rgba(45,212,191,0.18)]" />
-            <div>
-              <p className="text-[10px] lg:text-xs tracking-wide text-[color:var(--app-muted)]">
-                AI Image Edit
-              </p>
-              <h1 className="text-sm lg:text-lg font-semibold truncate max-w-[140px] sm:max-w-none">
-                {chain?.name ?? "Untitled"}
-              </h1>
-            </div>
-          </div>
+         <header className="flex flex-wrap items-center justify-between gap-2 lg:gap-4">
+           <div className="flex items-center gap-2 lg:gap-3">
+             <Button
+               type="button"
+               onClick={handleNewImage}
+               disabled={controlsDisabled}
+               variant="ghost"
+               size="icon"
+               className="h-8 w-8 lg:h-10 lg:w-10 rounded-full border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+               title="Back to upload"
+             >
+               <ArrowLeft className="h-4 w-4 lg:h-5 lg:w-5" />
+             </Button>
+             <div className="h-8 w-8 lg:h-10 lg:w-10 rounded-xl lg:rounded-2xl bg-gradient-to-br from-teal-400 to-lime-300 shadow-[0_18px_40px_rgba(45,212,191,0.18)]" />
+             <div>
+               <p className="text-[10px] lg:text-xs tracking-wide text-[color:var(--app-muted)]">
+                 AI Image Edit
+               </p>
+               <h1 className="text-sm lg:text-lg font-semibold truncate max-w-[140px] sm:max-w-none">
+                 {chain?.name ?? "Untitled"}
+               </h1>
+             </div>
+           </div>
 
            <div className="flex items-center gap-1.5 lg:gap-2">
              <UserButton
                afterSignOutUrl="/"
                appearance={{ elements: { avatarBox: "h-8 w-8" } }}
              />
-             <span className={`app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs ${hasCredits ? "text-[color:var(--app-muted)]" : "text-red-400"}`}>
+             <span
+               className={`app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs ${hasCredits ? "text-[color:var(--app-muted)]" : "text-red-400"}`}
+             >
                Credits: {credits}
              </span>
              {isGenerating && (
@@ -598,17 +851,8 @@ function ImageEditorApp() {
                  Generating...
                </span>
              )}
-            <Button
-              type="button"
-              onClick={handleNewImage}
-              disabled={controlsDisabled}
-              variant="secondary"
-              className="h-auto rounded-full px-3 py-1.5 lg:px-4 lg:py-2 text-xs lg:text-sm font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              New
-            </Button>
-          </div>
-        </header>
+           </div>
+         </header>
 
         <main className="mt-6 grid gap-4 lg:gap-6 lg:grid-cols-[minmax(0,1fr)_420px] items-start">
           {/* Left column: Image + History (on large screens) */}
@@ -616,17 +860,121 @@ function ImageEditorApp() {
             {/* Main image card */}
             <section className="app-card rounded-3xl p-3 lg:p-5">
               <div className="relative rounded-2xl border border-white/10 bg-black/20 p-2 lg:p-3 overflow-hidden">
-                <img
-                  src={getImageUrl(
-                    currentImage.url ?? "",
-                    currentImage.createdAt,
-                  )}
-                  alt={`Step ${currentImage.stepNumber}`}
-                  className="w-full h-auto max-h-[52vh] lg:max-h-[56vh] object-contain rounded-xl"
-                />
+                <div className="absolute right-2 top-2 z-20">
+                  <div className="flex items-center gap-1 rounded-full border border-white/15 bg-black/60 backdrop-blur px-1 py-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setImageViewerMode("current");
+                      }}
+                      aria-pressed={imageViewerMode === "current"}
+                      title="Only show current photo"
+                      className={`rounded-full px-2 py-1 text-[10px] font-semibold transition ${
+                        imageViewerMode === "current"
+                          ? "bg-white/15 text-white"
+                          : "text-[color:var(--app-muted)] hover:bg-white/10"
+                      }`}
+                    >
+                      Current
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setImageViewerMode("sideBySide");
+                      }}
+                      aria-pressed={imageViewerMode === "sideBySide"}
+                      title="Side by side: original + current"
+                      className={`rounded-full px-2 py-1 text-[10px] font-semibold transition ${
+                        imageViewerMode === "sideBySide"
+                          ? "bg-white/15 text-white"
+                          : "text-[color:var(--app-muted)] hover:bg-white/10"
+                      }`}
+                    >
+                      Side
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setImageViewerMode("alternate");
+                      }}
+                      aria-pressed={imageViewerMode === "alternate"}
+                      title="Click to alternate: original <-> current"
+                      className={`rounded-full px-2 py-1 text-[10px] font-semibold transition ${
+                        imageViewerMode === "alternate"
+                          ? "bg-white/15 text-white"
+                          : "text-[color:var(--app-muted)] hover:bg-white/10"
+                      }`}
+                    >
+                      Alternate
+                    </button>
+                  </div>
+                </div>
+
+                {imageViewerMode === "current" &&
+                  renderViewerImage(currentImage, {
+                    showOriginalBadge: currentImage.stepNumber === 0,
+                    label: "Selected",
+                  })}
+
+                {imageViewerMode === "sideBySide" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 lg:gap-3">
+                    {renderViewerImage(originalImage, {
+                      showOriginalBadge: true,
+                      label: "Original",
+                      imageClassName:
+                        "w-full h-auto max-h-[26vh] sm:max-h-[52vh] lg:max-h-[56vh] object-contain",
+                    })}
+                    {renderViewerImage(currentImage, {
+                      showOriginalBadge: currentImage.stepNumber === 0,
+                      label: "Selected",
+                      imageClassName:
+                        "w-full h-auto max-h-[26vh] sm:max-h-[52vh] lg:max-h-[56vh] object-contain",
+                    })}
+                  </div>
+                )}
+
+                {imageViewerMode === "alternate" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!canCompareWithOriginal) return;
+                      setAlternateShowingOriginal((prev) => !prev);
+                    }}
+                    className="relative block w-full text-left cursor-pointer"
+                    disabled={!canCompareWithOriginal}
+                    title={
+                      canCompareWithOriginal
+                        ? "Click to alternate"
+                        : "No alternate view available"
+                    }
+                  >
+                    {renderViewerImage(
+                      alternateShowingOriginal ? originalImage : currentImage,
+                      {
+                        showOriginalBadge:
+                          alternateShowingOriginal ||
+                          currentImage.stepNumber === 0,
+                        label: alternateShowingOriginal
+                          ? "Original"
+                          : "Selected",
+                      },
+                    )}
+                    {canCompareWithOriginal && (
+                      <span className="absolute left-3 bottom-3 z-10 app-badge rounded-full px-2 py-0.5 text-[10px] text-[color:var(--app-muted)] bg-black/60 border border-white/10 backdrop-blur">
+                        Click to alternate
+                      </span>
+                    )}
+                  </button>
+                )}
 
                 {isGenerating && (
-                  <div className="absolute inset-0 grid place-items-center bg-black/45">
+                  <div className="absolute inset-0 z-10 grid place-items-center bg-black/45">
                     <div className="app-card-2 rounded-2xl px-4 py-3 lg:px-5 lg:py-4 max-w-[90%]">
                       <div className="flex items-center gap-2 lg:gap-3">
                         <div className="h-4 w-4 lg:h-5 lg:w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -647,6 +995,51 @@ function ImageEditorApp() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              <div className="mt-2 lg:mt-3 flex flex-wrap items-center justify-end gap-2">
+                {imageActionMessage && (
+                  <span className="text-[10px] lg:text-xs text-[color:var(--app-faint)]">
+                    {imageActionMessage}
+                  </span>
+                )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleCopyCurrentImage}
+                    disabled={!currentImageSrc || copyState === "copying"}
+                    variant="secondary"
+                    className="h-auto rounded-full px-3 py-1.5 lg:px-4 lg:py-2 text-xs font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                    title="Copy current image to clipboard"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    {copyState === "copied" ? "Copied" : "Copy"}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleDownloadCurrentImage}
+                    disabled={
+                      !currentImageSrc || downloadState === "downloading"
+                    }
+                    variant="secondary"
+                    className="h-auto rounded-full px-3 py-1.5 lg:px-4 lg:py-2 text-xs font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                    title="Download current image"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    {downloadState === "done" ? "Downloaded" : "Download"}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleShareLink}
+                    disabled={!currentChainId}
+                    variant="secondary"
+                    className="h-auto rounded-full px-3 py-1.5 lg:px-4 lg:py-2 text-xs font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                    title="Copy a link anyone can edit (uses their credits)"
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
+                    Share
+                  </Button>
+                </div>
               </div>
 
               {/* Status badges - simplified on mobile */}
@@ -939,10 +1332,11 @@ function ImageEditorApp() {
                             !images.some(
                               (img) => img.parentImageId === visibleImage._id,
                             );
-                          const canDelete =
-                            showNode &&
-                            ((isOriginal && images.length >= 1) ||
-                              (isLeaf && !isOriginal));
+                           const canDelete =
+                             isOwner &&
+                             showNode &&
+                             ((isOriginal && images.length >= 1) ||
+                               (isLeaf && !isOriginal));
                           const deleteTitle = isOriginal
                             ? "Delete original (reset project)"
                             : "Delete image";

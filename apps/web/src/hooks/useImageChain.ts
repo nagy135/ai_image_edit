@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/convex-backend/convex/_generated/api";
 import type { Id } from "@repo/convex-backend/convex/_generated/dataModel";
@@ -39,11 +39,50 @@ export function useImageChain(
   setSelectedImageId: (id: Id<"images"> | null) => void,
   clerkUserId: string | null = null
 ): UseImageChainReturn {
-  const [currentChainId, setCurrentChainId] =
-    useState<Id<"imageChains"> | null>(null);
-  const [showUpload, setShowUpload] = useState(true);
+  const getChainIdFromUrl = useCallback((): Id<"imageChains"> | null => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("chainId");
+      return raw ? (raw as Id<"imageChains">) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const setChainIdInUrl = useCallback((chainId: Id<"imageChains"> | null) => {
+    try {
+      const url = new URL(window.location.href);
+      if (chainId) {
+        url.searchParams.set("chainId", String(chainId));
+      } else {
+        url.searchParams.delete("chainId");
+      }
+      window.history.pushState({}, "", url.toString());
+    } catch {
+      // Ignore URL update failures (e.g. non-browser env)
+    }
+  }, []);
+
+  const [currentChainId, setCurrentChainId] = useState<Id<"imageChains"> | null>(
+    () => getChainIdFromUrl(),
+  );
+  const [showUpload, setShowUpload] = useState(() => !getChainIdFromUrl());
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Support back/forward navigation between shared links.
+  useEffect(() => {
+    const onPopState = () => {
+      const chainId = getChainIdFromUrl();
+      setCurrentChainId(chainId);
+      setShowUpload(!chainId);
+      setSelectedImageId(null);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [getChainIdFromUrl, setSelectedImageId]);
 
   // Queries
   const chain = useQuery(
@@ -105,6 +144,7 @@ export function useImageChain(
         setCurrentChainId(chainId);
         setShowUpload(false);
         setSelectedImageId(null);
+        setChainIdInUrl(chainId);
       } catch (error) {
         console.error("Error uploading image:", error);
         alert("Failed to upload image");
@@ -112,7 +152,7 @@ export function useImageChain(
         setIsUploading(false);
       }
     },
-    [createChain, generateUploadUrl, setSelectedImageId, clerkUserId]
+    [createChain, generateUploadUrl, setChainIdInUrl, setSelectedImageId, clerkUserId]
   );
 
   const handleDrop = useCallback(
@@ -140,15 +180,17 @@ export function useImageChain(
     setCurrentChainId(null);
     setShowUpload(true);
     setSelectedImageId(null);
-  }, [setSelectedImageId]);
+    setChainIdInUrl(null);
+  }, [setChainIdInUrl, setSelectedImageId]);
 
   const handleSelectChain = useCallback(
     (chainId: Id<"imageChains">) => {
       setCurrentChainId(chainId);
       setShowUpload(false);
       setSelectedImageId(null);
+      setChainIdInUrl(chainId);
     },
-    [setSelectedImageId]
+    [setChainIdInUrl, setSelectedImageId]
   );
 
   const handleDeleteLastStep = useCallback(async () => {

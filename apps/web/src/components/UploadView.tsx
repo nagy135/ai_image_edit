@@ -1,10 +1,12 @@
 import { APP_SHELL_STYLE } from "../constants";
-import type { ChainWithUrl, Id } from "../types";
+import type { AdminChainWithUrl, ChainWithUrl, Id } from "../types";
 import { getImageUrl } from "../utils";
 import { UserButton } from "@clerk/clerk-react";
 
 interface UploadViewProps {
   allChains?: ChainWithUrl[];
+  adminChains?: AdminChainWithUrl[];
+  isAdmin?: boolean;
   uploadDisabled: boolean;
   credits: number;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -15,6 +17,8 @@ interface UploadViewProps {
 
 export function UploadView({
   allChains,
+  adminChains,
+  isAdmin,
   uploadDisabled,
   credits,
   fileInputRef,
@@ -155,6 +159,68 @@ export function UploadView({
               </div>
             )}
           </section>
+
+          {(isAdmin ?? false) && (
+            <section className="app-card rounded-3xl p-6 lg:col-span-2">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold">Other users' projects</h2>
+                  <p className="mt-1 text-sm text-[color:var(--app-muted)]">
+                    Admin-only list. Opening a project works via shareable URL.
+                  </p>
+                </div>
+                <span className="app-badge rounded-full px-3 py-1 text-xs text-[color:var(--app-muted)]">
+                  {adminChains?.length ?? 0} shown
+                </span>
+              </div>
+
+              {adminChains && adminChains.length > 0 ? (
+                <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                  {adminChains.map((c) => (
+                    <button
+                      key={c._id}
+                      type="button"
+                      disabled={uploadDisabled}
+                      onClick={() => onSelectChain(c._id)}
+                      className="group text-left rounded-2xl border border-white/10 bg-white/5 overflow-hidden transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed hover:border-white/20 hover:bg-white/10"
+                      title={
+                        c.owner?.email
+                          ? `Owner: ${c.owner.email}`
+                          : c.owner?.name
+                            ? `Owner: ${c.owner.name}`
+                            : undefined
+                      }
+                    >
+                      <div className="aspect-square bg-black/20">
+                        <img
+                          src={getImageUrl(c.originalUrl ?? "", c.createdAt)}
+                          alt={c.name}
+                          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                        />
+                      </div>
+                      <div className="p-3">
+                        <p className="text-sm font-semibold truncate">
+                          {c.name}
+                        </p>
+                        <p className="mt-0.5 text-xs text-[color:var(--app-muted)] truncate">
+                          {c.owner?.email ?? c.owner?.name ?? c.userId}
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-[color:var(--app-faint)]">
+                          {new Date(c.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6">
+                  <p className="text-sm text-[color:var(--app-muted)]">
+                    No other users' projects found.
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
         </main>
       </div>
     </div>

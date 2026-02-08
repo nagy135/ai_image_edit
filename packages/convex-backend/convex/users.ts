@@ -39,6 +39,7 @@ export const upsertCurrentUser = mutation({
       name: args.name,
       email: args.email,
       imageUrl: args.imageUrl,
+      isAdmin: false,
       credits: 10,
       createdAt: now,
       updatedAt: now,
