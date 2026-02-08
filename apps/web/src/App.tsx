@@ -840,62 +840,84 @@ function App() {
 
            {/* Right sidebar: Tools (hidden on mobile, shown on large screens) */}
            <aside className="hidden lg:block space-y-5">
-             <section className="app-card rounded-3xl p-5">
-               <div className="space-y-4">
-                 <div>
-                   <label className="text-xs font-medium text-gray-300 block mb-2">
-                     Generation Mode
-                   </label>
-                   <div className="flex items-center gap-2">
-                     <span className="text-xs text-[color:var(--app-muted)]">
-                       Oneshot
-                     </span>
-                     <button
-                       type="button"
-                       onClick={() => {
-                         if (controlsDisabled) return;
-                         setIsBatchMode((prev) => !prev);
-                         setPendingPrompts([]);
-                       }}
-                       disabled={controlsDisabled}
-                       className={`relative h-6 w-11 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                         isBatchMode
-                           ? "bg-teal-400/80 border-teal-200/60"
-                           : "bg-white/10 border-white/20"
-                       }`}
-                     >
-                       <span
-                         className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-                           isBatchMode ? "left-5" : "left-0.5"
-                         }`}
-                       />
-                     </button>
-                     <span className="text-xs text-[color:var(--app-muted)]">
-                       Batch
-                     </span>
-                   </div>
-                 </div>
+              <section className="app-card rounded-3xl p-5">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <h2 className="text-sm font-semibold">Generation mode</h2>
+                  <Button
+                    type="button"
+                    onClick={handleBatchGenerate}
+                    disabled={
+                      controlsDisabled ||
+                      !isBatchMode ||
+                      pendingPrompts.length === 0
+                    }
+                    variant="ghost"
+                    className="h-auto rounded-full px-3 py-1 text-xs font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Generate
+                  </Button>
+                </div>
 
-                 <div>
-                   <label className="text-xs font-medium text-gray-300 block mb-2">
-                     Model
-                   </label>
-                    <Select value={selectedModel} onValueChange={setSelectedModel}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                     <SelectContent>
-                       <SelectItem value="gemini-2.5-flash-image">
-                         Gemini 2.5 Flash
-                       </SelectItem>
-                       <SelectItem value="gemini-3-pro-image-preview">
-                         Gemini 3 Pro Preview
-                       </SelectItem>
-                     </SelectContent>
-                   </Select>
-                 </div>
-               </div>
-             </section>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-medium text-gray-300 block mb-2">
+                      Mode
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-[color:var(--app-muted)]">
+                        Oneshot
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (controlsDisabled) return;
+                          setIsBatchMode((prev) => !prev);
+                          setPendingPrompts([]);
+                        }}
+                        disabled={controlsDisabled}
+                        className={`relative h-6 w-11 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                          isBatchMode
+                            ? "bg-teal-400/80 border-teal-200/60"
+                            : "bg-white/10 border-white/20"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                            isBatchMode ? "left-5" : "left-0.5"
+                          }`}
+                        />
+                      </button>
+                      <span className="text-xs text-[color:var(--app-muted)]">
+                        Batch
+                      </span>
+                      <span className="text-xs text-[color:var(--app-faint)] ml-auto">
+                        {isBatchMode
+                          ? `Queued: ${pendingPrompts.length}`
+                          : "Runs instantly"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-gray-300 block mb-2">
+                      Model
+                    </label>
+                     <Select value={selectedModel} onValueChange={setSelectedModel}>
+                       <SelectTrigger className="w-full">
+                         <SelectValue />
+                       </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gemini-2.5-flash-image">
+                          Gemini 2.5 Flash
+                        </SelectItem>
+                        <SelectItem value="gemini-3-pro-image-preview">
+                          Gemini 3 Pro Preview
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </section>
 
              <section className="app-card rounded-3xl p-5">
                <h2 className="text-sm font-semibold">Quick tools</h2>
