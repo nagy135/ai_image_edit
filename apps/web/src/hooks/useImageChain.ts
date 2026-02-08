@@ -26,7 +26,7 @@ interface UseImageChainReturn {
   handleDeleteChain: () => Promise<void>;
 
   // Refs
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
 
   // Computed
   controlsDisabled: boolean;

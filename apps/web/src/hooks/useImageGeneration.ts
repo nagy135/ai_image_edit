@@ -23,14 +23,16 @@ interface UseImageGenerationReturn {
   handleBatchGenerate: () => Promise<void>;
   setIsBatchMode: (value: boolean | ((prev: boolean) => boolean)) => void;
   setManualPrompt: (value: string) => void;
+  setPendingPrompts: (value: string[] | ((prev: string[]) => string[])) => void;
 }
 
 export function useImageGeneration(
-  currentChainId: Id<"imageChains"> | null,
-  images: ImageWithUrl[] | undefined,
-  selectedImageId: Id<"images"> | null,
-  getSelectedImage: () => ImageWithUrl | null
-): UseImageGenerationReturn {
+   currentChainId: Id<"imageChains"> | null,
+   images: ImageWithUrl[] | undefined,
+   getSelectedImage: () => ImageWithUrl | null,
+   setSelectedImageId?: (id: Id<"images"> | null) => void,
+   selectedModel?: string
+ ): UseImageGenerationReturn {
   const [isGenerating, setIsGenerating] = useState(false);
   const [activePrompt, setActivePrompt] = useState<string>("");
   const [isBatchMode, setIsBatchMode] = useState(false);
@@ -58,17 +60,22 @@ export function useImageGeneration(
         const brightnessPercent =
           nextBrightnessPercent ?? sourceImage.brightnessPercent ?? 100;
 
-        await generateNextStep({
-          chainId: currentChainId,
-          sourceImageId: sourceImage._id,
-          prompt,
-          editType,
-          zoomPercent,
-          brightnessPercent,
-        });
-        // Clear selected image to auto-select latest
-        // Note: parent component should handle this
-      } catch (error) {
+         const finalEditType = (editType === "original" || !editType) ? "unknown" : editType;
+         
+         await generateNextStep({
+           chainId: currentChainId,
+           sourceImageId: sourceImage._id,
+           prompt,
+           editType: finalEditType,
+           zoomPercent,
+           brightnessPercent,
+           model: selectedModel,
+         });
+         // Clear selected image to auto-select latest
+         if (setSelectedImageId) {
+           setSelectedImageId(null);
+         }
+       } catch (error) {
         console.error("Error generating image:", error);
         alert("Failed to generate image: " + (error as Error).message);
       } finally {
@@ -76,7 +83,7 @@ export function useImageGeneration(
         setActivePrompt("");
       }
     },
-    [currentChainId, images, getSelectedImage, generateNextStep]
+     [currentChainId, images, getSelectedImage, generateNextStep, setSelectedImageId, selectedModel]
   );
 
   const enqueuePrompt = useCallback((prompt: string) => {
@@ -95,16 +102,17 @@ export function useImageGeneration(
     setPendingPrompts([]);
   }, [pendingPrompts, getSelectedImage, generateImage]);
 
-  return {
-    isGenerating,
-    activePrompt,
-    isBatchMode,
-    pendingPrompts,
-    manualPrompt,
-    generateImage,
-    enqueuePrompt,
-    handleBatchGenerate,
-    setIsBatchMode,
-    setManualPrompt,
-  };
+   return {
+     isGenerating,
+     activePrompt,
+     isBatchMode,
+     pendingPrompts,
+     manualPrompt,
+     generateImage,
+     enqueuePrompt,
+     handleBatchGenerate,
+     setIsBatchMode,
+     setManualPrompt,
+     setPendingPrompts,
+   };
 }

@@ -67,8 +67,14 @@ export const PROMPTS = {
   alignRight: "Place the main object on the right side of the photo",
   makeOld:
     "Make everyone and everything in this photo look noticeably older. Add wrinkles, age spots, graying hair, aged appearance to any people. Show aging effects on objects and surroundings as well.",
+  makeYoung:
+    "Make everyone and everything in this photo look noticeably younger. Remove wrinkles, age spots, restore youthful skin, darker hair color. Make any people appear in their prime youth.",
   deleteBackground:
     "Remove the background completely, leaving only the main subject. Replace the background with a clean, transparent or solid white background.",
+  addBackground:
+    "Add a beautiful, natural-looking background to this image. If the background is plain or missing, generate an appropriate scenic or contextual background that complements the main subject.",
+  removeObject:
+    "Remove any distracting or unwanted objects from the background of this image. Keep the main subject intact but clean up the surroundings.",
   makeSquare:
     "Crop or extend the image to make it perfectly square while keeping the main subject centered and fully visible.",
   makeCircular:

@@ -20,7 +20,7 @@ export function PositionButton({
       className={`flex items-center justify-center w-full h-auto transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed text-black font-semibold ${toneClassName} ${
         isCompact
           ? "gap-1.5 rounded-xl px-2 py-2 text-xs"
-          : "gap-2 rounded-2xl px-4 py-3 text-sm shadow-[0_18px_40px_rgba(45,212,191,0.16)]"
+          : "gap-1.5 rounded-lg px-2.5 py-2.5 text-xs shadow-[0_8px_20px_rgba(45,212,191,0.12)]"
       }`}
     >
       <Icon className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />

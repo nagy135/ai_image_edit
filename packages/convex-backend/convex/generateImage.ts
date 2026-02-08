@@ -73,6 +73,13 @@ export const generateNextStep = action({
       v.literal("align_right"),
       v.literal("center"),
       v.literal("make_old"),
+      v.literal("make_young"),
+      v.literal("delete_background"),
+      v.literal("add_background"),
+      v.literal("remove_object"),
+      v.literal("make_square"),
+      v.literal("make_circular"),
+      v.literal("duplicate_object"),
       v.literal("manual"),
       v.literal("zoom"),
       v.literal("brightness"),
@@ -80,6 +87,7 @@ export const generateNextStep = action({
     ),
     zoomPercent: v.optional(v.number()),
     brightnessPercent: v.optional(v.number()),
+    model: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -202,21 +210,24 @@ export const generateNextStep = action({
       text: prompt,
     });
 
-    // Call OpenRouter
-    const result = await openRouter.chat.send({
-      chatGenerationParams: {
-        // model: "google/gemini-3-pro-image-preview",
-        model: "google/gemini-2.5-flash-image",
-        messages: [
-          {
-            role: "user",
-            content: messageContent,
-          },
-        ],
-        modalities: ["image", "text"],
-        stream: false,
-      },
-    });
+     // Call OpenRouter
+     const modelToUse = args.model === "gemini-3-pro-image-preview"
+       ? "google/gemini-3-pro-image-preview"
+       : "google/gemini-2.5-flash-image";
+
+     const result = await openRouter.chat.send({
+       chatGenerationParams: {
+         model: modelToUse,
+         messages: [
+           {
+             role: "user",
+             content: messageContent,
+           },
+         ],
+         modalities: ["image", "text"],
+         stream: false,
+       },
+     });
 
     // Extract the generated image
     if (!result.choices || result.choices.length === 0) {

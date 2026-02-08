@@ -1,14 +1,14 @@
 import { APP_SHELL_STYLE } from "../constants";
-import type { ChainWithUrl } from "../types";
+import type { ChainWithUrl, Id } from "../types";
 import { getImageUrl } from "../utils";
 
 interface UploadViewProps {
   allChains?: ChainWithUrl[];
   uploadDisabled: boolean;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   onDrop: (e: React.DragEvent) => void;
   onFileInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onSelectChain: (chainId: string) => void;
+  onSelectChain: (chainId: Id<"imageChains">) => void;
 }
 
 export function UploadView({
