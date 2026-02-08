@@ -880,10 +880,10 @@ function App() {
                    <label className="text-xs font-medium text-gray-300 block mb-2">
                      Model
                    </label>
-                   <Select value={selectedModel} onValueChange={setSelectedModel}>
-                     <SelectTrigger className="w-full border-white/10 bg-black/30 text-white">
-                       <SelectValue />
-                     </SelectTrigger>
+                    <Select value={selectedModel} onValueChange={setSelectedModel}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
                      <SelectContent>
                        <SelectItem value="gemini-2.5-flash-image">
                          Gemini 2.5 Flash
