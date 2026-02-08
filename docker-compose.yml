@@ -5,8 +5,8 @@ services:
     stop_grace_period: 10s
     stop_signal: SIGINT
     ports:
-      - "${PORT:-3210}:3210"
-      - "${SITE_PROXY_PORT:-3211}:3211"
+      - "${PORT:-3210}:3212"
+      - "${SITE_PROXY_PORT:-3211}:3213"
     volumes:
       - data:/convex/data
       - ./apps/web/public/images:/shared-images
@@ -53,7 +53,7 @@ services:
     stop_grace_period: 10s
     stop_signal: SIGINT
     ports:
-      - "${DASHBOARD_PORT:-6791}:6791"
+      - "${DASHBOARD_PORT:-6791}:6792"
     environment:
       - NEXT_PUBLIC_DEPLOYMENT_URL=${NEXT_PUBLIC_DEPLOYMENT_URL:-http://127.0.0.1:${PORT:-3210}}
       - NEXT_PUBLIC_LOAD_MONACO_INTERNALLY
