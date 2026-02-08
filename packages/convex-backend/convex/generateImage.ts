@@ -205,7 +205,8 @@ export const generateNextStep = action({
     // Call OpenRouter
     const result = await openRouter.chat.send({
       chatGenerationParams: {
-        model: "google/gemini-3-pro-image-preview",
+        // model: "google/gemini-3-pro-image-preview",
+        model: "google/gemini-2.5-flash-image",
         messages: [
           {
             role: "user",

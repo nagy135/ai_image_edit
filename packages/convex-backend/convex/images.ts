@@ -7,6 +7,10 @@ const editTypeValidator = v.union(
   v.literal("align_right"),
   v.literal("center"),
   v.literal("make_old"),
+  v.literal("delete_background"),
+  v.literal("make_square"),
+  v.literal("make_circular"),
+  v.literal("duplicate_object"),
   v.literal("manual"),
   v.literal("zoom"),
   v.literal("brightness"),
@@ -225,6 +229,42 @@ export const deleteLastStep = mutation({
     }
 
     return { deletedImageId: last._id, deletedStepNumber: last.stepNumber };
+  },
+});
+
+// Delete any leaf image (an image with no children).
+// Step 0 (original) cannot be deleted via this mutation.
+export const deleteLeafImage = mutation({
+  args: { imageId: v.id("images") },
+  handler: async (ctx, args) => {
+    const image = await ctx.db.get(args.imageId);
+    if (!image) {
+      throw new Error("Image not found");
+    }
+
+    if (image.stepNumber === 0) {
+      throw new Error("Cannot delete original image");
+    }
+
+    // Check if this image has any children (other images that reference it as parent)
+    const children = await ctx.db
+      .query("images")
+      .withIndex("by_chain", (q) => q.eq("chainId", image.chainId))
+      .filter((q) => q.eq(q.field("parentImageId"), args.imageId))
+      .collect();
+
+    if (children.length > 0) {
+      throw new Error("Cannot delete image with children");
+    }
+
+    await ctx.db.delete(image._id);
+    try {
+      await ctx.storage.delete(image.storageId);
+    } catch {
+      // Ignore storage deletion errors (e.g. already deleted)
+    }
+
+    return { deletedImageId: image._id, deletedStepNumber: image.stepNumber };
   },
 });
 
