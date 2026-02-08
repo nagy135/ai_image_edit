@@ -81,4 +81,6 @@ export const PROMPTS = {
     "Crop the image into a circular shape, centering on the main subject. Add a clean, solid background outside the circle.",
   duplicateObject:
     "Duplicate the main object or subject in the image. Place the duplicate next to the original in a natural-looking arrangement.",
+  prettify:
+    "Fix small imperfections and blemishes in the photo for a polished look. Subtly improve skin texture, remove minor marks, and enhance overall clarity without overdoing it or changing the natural appearance.",
 } as const;

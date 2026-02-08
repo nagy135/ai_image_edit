@@ -16,23 +16,24 @@ import {
   TooltipTrigger,
 } from "./components/ui/tooltip";
 import {
-  AlignLeft,
-  AlignRight,
-  ArrowLeft,
-  Baby,
-  Circle,
-  Copy,
-  CornerDownRight,
-  Link2,
-  Download,
-  Eraser,
-  Focus,
-  ImagePlus,
-  MoveDown,
-  Sparkles,
-  Square,
-  Trash2,
-} from "lucide-react";
+   AlignLeft,
+   AlignRight,
+   ArrowLeft,
+   Baby,
+   Circle,
+   Copy,
+   CornerDownRight,
+   Link2,
+   Download,
+   Eraser,
+   Focus,
+   ImagePlus,
+   MoveDown,
+   Sparkles,
+   Square,
+   Trash2,
+   Wand2,
+ } from "lucide-react";
 import { EditSlider } from "./components/EditSlider";
 import { PositionButton } from "./components/buttons/PositionButton";
 import { UploadView } from "./components/UploadView";
@@ -834,6 +835,20 @@ function ImageEditorApp() {
     );
   };
 
+  const handlePrettify = async () => {
+    const source = getSelectedImage(images, selectedImageId);
+    if (isBatchMode) {
+      enqueuePrompt(PROMPTS.prettify);
+      return;
+    }
+    await generateImage(
+      PROMPTS.prettify,
+      "prettify",
+      source?.zoomPercent ?? zoomLevel,
+      source?.brightnessPercent ?? brightnessLevel,
+    );
+  };
+
   const handleManualSubmit = async () => {
     const nextPrompt = manualPrompt.trim();
     if (!nextPrompt) return;
@@ -1124,209 +1139,267 @@ function ImageEditorApp() {
               </div>
             </section>
 
-            {/* Mobile: Compact tools section - shown only on small screens */}
-            <section className="lg:hidden app-card rounded-2xl p-3">
-              <div className="flex items-center justify-between gap-2 pb-3 border-b border-white/10">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-[color:var(--app-muted)]">
-                    Oneshot
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (controlsDisabled) return;
-                      setIsBatchMode((prev) => !prev);
-                      setPendingPrompts([]);
-                    }}
-                    disabled={controlsDisabled}
-                    className={`relative h-5 w-9 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isBatchMode
-                        ? "bg-teal-400/80 border-teal-200/60"
-                        : "bg-white/10 border-white/20"
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
-                        isBatchMode ? "left-4" : "left-0.5"
-                      }`}
-                    />
-                  </button>
-                  <span className="text-[10px] text-[color:var(--app-muted)]">
-                    Batch
-                  </span>
-                </div>
-                <Button
-                  type="button"
-                  onClick={handleBatchGenerate}
-                  disabled={
-                    controlsDisabled ||
-                    !isBatchMode ||
-                    pendingPrompts.length === 0
-                  }
-                  variant="ghost"
-                  className="h-auto rounded-full px-3 py-1 text-[10px] font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Generate
-                </Button>
-              </div>
-              <div className="grid grid-cols-2 gap-3 pt-3">
-                {/* Compact sliders */}
-                <div className="space-y-3">
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-medium text-gray-300">
-                        Zoom
-                      </span>
-                      <span className="text-[10px] text-gray-400 tabular-nums">
-                        {zoomLevel}%
-                      </span>
+             {/* Mobile: Compact tools section - shown only on small screens */}
+             <section className="lg:hidden app-card rounded-2xl p-3">
+               <div className="flex items-center justify-between gap-2 pb-3 border-b border-white/10">
+                 <div className="flex items-center gap-2">
+                   <span className="text-[10px] text-[color:var(--app-muted)]">
+                     Oneshot
+                   </span>
+                   <button
+                     type="button"
+                     onClick={() => {
+                       if (controlsDisabled) return;
+                       setIsBatchMode((prev) => !prev);
+                       setPendingPrompts([]);
+                     }}
+                     disabled={controlsDisabled}
+                     className={`relative h-5 w-9 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                       isBatchMode
+                         ? "bg-teal-400/80 border-teal-200/60"
+                         : "bg-white/10 border-white/20"
+                     }`}
+                   >
+                     <span
+                       className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
+                         isBatchMode ? "left-4" : "left-0.5"
+                       }`}
+                     />
+                   </button>
+                   <span className="text-[10px] text-[color:var(--app-muted)]">
+                     Batch
+                   </span>
+                 </div>
+                 <Button
+                   type="button"
+                   onClick={handleBatchGenerate}
+                   disabled={
+                     controlsDisabled ||
+                     !isBatchMode ||
+                     pendingPrompts.length === 0
+                   }
+                   variant="ghost"
+                   className="h-auto rounded-full px-3 py-1 text-[10px] font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
+                   Generate
+                 </Button>
+               </div>
+               <div className="mt-3 pb-3 border-b border-white/10">
+                 <label className="text-[10px] font-medium text-gray-300 block mb-2">
+                   Model
+                 </label>
+                 <Select
+                   value={selectedModel}
+                   onValueChange={setSelectedModel}
+                 >
+                   <SelectTrigger className="w-full">
+                     <SelectValue />
+                   </SelectTrigger>
+                   <SelectContent>
+                     <SelectItem value="gemini-2.5-flash-image">
+                       Gemini 2.5 Flash
+                     </SelectItem>
+                     <SelectItem value="gemini-3-pro-image-preview">
+                       Gemini 3 Pro Preview
+                     </SelectItem>
+                   </SelectContent>
+                 </Select>
+               </div>
+               <div className="mt-3 space-y-3">
+                 {/* Compact sliders */}
+                 <div className="space-y-2">
+                   <div className="flex flex-col gap-1">
+                     <div className="flex justify-between items-center">
+                       <span className="text-[10px] font-medium text-gray-300">
+                         Zoom
+                       </span>
+                       <span className="text-[10px] text-gray-400 tabular-nums">
+                         {zoomLevel}%
+                       </span>
+                     </div>
+                     <input
+                       type="range"
+                       min={0}
+                       max={200}
+                       value={zoomLevel}
+                       onChange={(e) => setZoomLevel(Number(e.target.value))}
+                       onPointerUp={() => {
+                         const base =
+                           getSelectedImage(images, selectedImageId)
+                             ?.zoomPercent ?? 100;
+                         if (zoomLevel !== base) handleZoomRelease(zoomLevel);
+                       }}
+                       disabled={controlsDisabled}
+                       style={{
+                         background: `linear-gradient(90deg, rgba(45,212,191,0.95) 0%, rgba(163,230,53,0.90) ${(zoomLevel / 200) * 100}%, rgba(255,255,255,0.14) ${(zoomLevel / 200) * 100}%, rgba(255,255,255,0.14) 100%)`,
+                       }}
+                       className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
+                     />
+                   </div>
+                   <div className="flex flex-col gap-1">
+                     <div className="flex justify-between items-center">
+                       <span className="text-[10px] font-medium text-gray-300">
+                         Brightness
+                       </span>
+                       <span className="text-[10px] text-gray-400 tabular-nums">
+                         {brightnessLevel}%
+                       </span>
+                     </div>
+                     <input
+                       type="range"
+                       min={0}
+                       max={200}
+                       value={brightnessLevel}
+                       onChange={(e) =>
+                         setBrightnessLevel(Number(e.target.value))
+                       }
+                       onPointerUp={() => {
+                         const base =
+                           getSelectedImage(images, selectedImageId)
+                             ?.brightnessPercent ?? 100;
+                         if (brightnessLevel !== base)
+                           handleBrightnessRelease(brightnessLevel);
+                       }}
+                       disabled={controlsDisabled}
+                       style={{
+                         background: `linear-gradient(90deg, rgba(45,212,191,0.95) 0%, rgba(163,230,53,0.90) ${(brightnessLevel / 200) * 100}%, rgba(255,255,255,0.14) ${(brightnessLevel / 200) * 100}%, rgba(255,255,255,0.14) 100%)`,
+                       }}
+                       className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
+                     />
+                   </div>
+                 </div>
+                 {/* Compact quick tools - full width buttons */}
+                 <div className="space-y-2">
+                   <p className="text-[10px] font-medium text-gray-300">Quick tools</p>
+                   <div className="grid grid-cols-3 gap-1">
+                     {/* Row 1 */}
+                     <Button
+                       type="button"
+                       onClick={handleAlignLeftClick}
+                       disabled={controlsDisabled}
+                       variant="ghost"
+                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-sky-400/90 to-cyan-300/90 hover:from-sky-300 hover:to-cyan-200"
+                     >
+                       <AlignLeft className="w-3 h-3" />
+                       Left
+                     </Button>
+                     <Button
+                       type="button"
+                       onClick={handleCenterClick}
+                       disabled={controlsDisabled}
+                       variant="ghost"
+                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-teal-400/90 to-lime-300/90 hover:from-teal-300 hover:to-lime-200"
+                     >
+                       <Focus className="w-3 h-3" />
+                       Center
+                     </Button>
+                     {/* Row 2 */}
+                     <Button
+                       type="button"
+                       onClick={handleAlignRightClick}
+                       disabled={controlsDisabled}
+                       variant="ghost"
+                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-rose-400/90 to-amber-300/90 hover:from-rose-300 hover:to-amber-200"
+                     >
+                       <AlignRight className="w-3 h-3" />
+                       Right
+                     </Button>
+                     <Button
+                       type="button"
+                       onClick={handleMakeOlder}
+                       disabled={controlsDisabled}
+                       variant="ghost"
+                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-amber-500/90 to-orange-400/90 hover:from-amber-400 hover:to-orange-300"
+                     >
+                       <Sparkles className="w-3 h-3" />
+                       Old
+                     </Button>
+                     {/* Row 3 */}
+                     <Button
+                       type="button"
+                       onClick={handleMakeYoung}
+                       disabled={controlsDisabled}
+                       variant="ghost"
+                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-pink-400/90 to-rose-300/90 hover:from-pink-300 hover:to-rose-200"
+                     >
+                       <Baby className="w-3 h-3" />
+                       Young
+                     </Button>
+                     <Button
+                       type="button"
+                       onClick={handleDuplicateObject}
+                       disabled={controlsDisabled}
+                       variant="ghost"
+                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-emerald-500/90 to-teal-400/90 hover:from-emerald-400 hover:to-teal-300"
+                     >
+                       <Copy className="w-3 h-3" />
+                       Duplicate
+                     </Button>
+                     {/* Row 4 */}
+                     <Button
+                       type="button"
+                       onClick={handleDeleteBackground}
+                       disabled={controlsDisabled}
+                       variant="ghost"
+                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-red-500/90 to-pink-400/90 hover:from-red-400 hover:to-pink-300"
+                     >
+                       <Eraser className="w-3 h-3" />
+                       Remove BG
+                     </Button>
+                     <Button
+                       type="button"
+                       onClick={handleAddBackground}
+                       disabled={controlsDisabled}
+                       variant="ghost"
+                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-indigo-500/90 to-purple-400/90 hover:from-indigo-400 hover:to-purple-300"
+                     >
+                       <ImagePlus className="w-3 h-3" />
+                       Add BG
+                     </Button>
+                     {/* Row 5 */}
+                     <Button
+                       type="button"
+                       onClick={handleRemoveObject}
+                       disabled={controlsDisabled}
+                       variant="ghost"
+                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-slate-500/90 to-gray-400/90 hover:from-slate-400 hover:to-gray-300"
+                     >
+                       <Trash2 className="w-3 h-3" />
+                       Clean Up
+                     </Button>
+                     <Button
+                       type="button"
+                       onClick={handleMakeSquare}
+                       disabled={controlsDisabled}
+                       variant="ghost"
+                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-violet-500/90 to-purple-400/90 hover:from-violet-400 hover:to-purple-300"
+                     >
+                       <Square className="w-3 h-3" />
+                       Square
+                     </Button>
+                      {/* Row 6 */}
+                      <Button
+                        type="button"
+                        onClick={handleMakeCircular}
+                        disabled={controlsDisabled}
+                        variant="ghost"
+                        className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-fuchsia-500/90 to-pink-400/90 hover:from-fuchsia-400 hover:to-pink-300"
+                      >
+                        <Circle className="w-3 h-3" />
+                        Circular
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handlePrettify}
+                        disabled={controlsDisabled}
+                        variant="ghost"
+                        className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-400/90 to-blue-300/90 hover:from-cyan-300 hover:to-blue-200"
+                      >
+                        <Wand2 className="w-3 h-3" />
+                        Prettify
+                      </Button>
                     </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={200}
-                      value={zoomLevel}
-                      onChange={(e) => setZoomLevel(Number(e.target.value))}
-                      onPointerUp={() => {
-                        const base =
-                          getSelectedImage(images, selectedImageId)
-                            ?.zoomPercent ?? 100;
-                        if (zoomLevel !== base) handleZoomRelease(zoomLevel);
-                      }}
-                      disabled={controlsDisabled}
-                      style={{
-                        background: `linear-gradient(90deg, rgba(45,212,191,0.95) 0%, rgba(163,230,53,0.90) ${(zoomLevel / 200) * 100}%, rgba(255,255,255,0.14) ${(zoomLevel / 200) * 100}%, rgba(255,255,255,0.14) 100%)`,
-                      }}
-                      className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
-                    />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-medium text-gray-300">
-                        Brightness
-                      </span>
-                      <span className="text-[10px] text-gray-400 tabular-nums">
-                        {brightnessLevel}%
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={200}
-                      value={brightnessLevel}
-                      onChange={(e) =>
-                        setBrightnessLevel(Number(e.target.value))
-                      }
-                      onPointerUp={() => {
-                        const base =
-                          getSelectedImage(images, selectedImageId)
-                            ?.brightnessPercent ?? 100;
-                        if (brightnessLevel !== base)
-                          handleBrightnessRelease(brightnessLevel);
-                      }}
-                      disabled={controlsDisabled}
-                      style={{
-                        background: `linear-gradient(90deg, rgba(45,212,191,0.95) 0%, rgba(163,230,53,0.90) ${(brightnessLevel / 200) * 100}%, rgba(255,255,255,0.14) ${(brightnessLevel / 200) * 100}%, rgba(255,255,255,0.14) 100%)`,
-                      }}
-                      className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
-                    />
-                  </div>
-                </div>
-                {/* Compact quick tools - 3x3 grid */}
-                <div className="grid grid-cols-3 gap-1.5">
-                  {/* Row 1: Position */}
-                  <PositionButton
-                    onClick={handleAlignLeftClick}
-                    disabled={controlsDisabled}
-                    size="compact"
-                    label="Left"
-                    icon={AlignLeft}
-                    toneClassName="bg-gradient-to-r from-sky-400/90 to-cyan-300/90 hover:from-sky-300 hover:to-cyan-200"
-                  />
-                  <PositionButton
-                    onClick={handleCenterClick}
-                    disabled={controlsDisabled}
-                    size="compact"
-                    label="Center"
-                    icon={Focus}
-                    toneClassName="bg-gradient-to-r from-teal-400/90 to-lime-300/90 hover:from-teal-300 hover:to-lime-200"
-                  />
-                  <PositionButton
-                    onClick={handleAlignRightClick}
-                    disabled={controlsDisabled}
-                    size="compact"
-                    label="Right"
-                    icon={AlignRight}
-                    toneClassName="bg-gradient-to-r from-rose-400/90 to-amber-300/90 hover:from-rose-300 hover:to-amber-200"
-                  />
-                  {/* Row 2: Age */}
-                  <PositionButton
-                    onClick={handleMakeOlder}
-                    disabled={controlsDisabled}
-                    size="compact"
-                    label="Old"
-                    icon={Sparkles}
-                    toneClassName="bg-gradient-to-r from-amber-500/90 to-orange-400/90 hover:from-amber-400 hover:to-orange-300"
-                  />
-                  <PositionButton
-                    onClick={handleMakeYoung}
-                    disabled={controlsDisabled}
-                    size="compact"
-                    label="Young"
-                    icon={Baby}
-                    toneClassName="bg-gradient-to-r from-pink-400/90 to-rose-300/90 hover:from-pink-300 hover:to-rose-200"
-                  />
-                  <PositionButton
-                    onClick={handleDuplicateObject}
-                    disabled={controlsDisabled}
-                    size="compact"
-                    label="Duplicate"
-                    icon={Copy}
-                    toneClassName="bg-gradient-to-r from-emerald-500/90 to-teal-400/90 hover:from-emerald-400 hover:to-teal-300"
-                  />
-                  {/* Row 3: Background */}
-                  <PositionButton
-                    onClick={handleDeleteBackground}
-                    disabled={controlsDisabled}
-                    size="compact"
-                    label="Remove BG"
-                    icon={Eraser}
-                    toneClassName="bg-gradient-to-r from-red-500/90 to-pink-400/90 hover:from-red-400 hover:to-pink-300"
-                  />
-                  <PositionButton
-                    onClick={handleAddBackground}
-                    disabled={controlsDisabled}
-                    size="compact"
-                    label="Add BG"
-                    icon={ImagePlus}
-                    toneClassName="bg-gradient-to-r from-indigo-500/90 to-purple-400/90 hover:from-indigo-400 hover:to-purple-300"
-                  />
-                  <PositionButton
-                    onClick={handleRemoveObject}
-                    disabled={controlsDisabled}
-                    size="compact"
-                    label="Clean Up"
-                    icon={Trash2}
-                    toneClassName="bg-gradient-to-r from-slate-500/90 to-gray-400/90 hover:from-slate-400 hover:to-gray-300"
-                  />
-                  {/* Row 4: Shape */}
-                  <PositionButton
-                    onClick={handleMakeSquare}
-                    disabled={controlsDisabled}
-                    size="compact"
-                    label="Square"
-                    icon={Square}
-                    toneClassName="bg-gradient-to-r from-violet-500/90 to-purple-400/90 hover:from-violet-400 hover:to-purple-300"
-                  />
-                  <PositionButton
-                    onClick={handleMakeCircular}
-                    disabled={controlsDisabled}
-                    size="compact"
-                    label="Circular"
-                    icon={Circle}
-                    toneClassName="bg-gradient-to-r from-fuchsia-500/90 to-pink-400/90 hover:from-fuchsia-400 hover:to-pink-300"
-                  />
-                </div>
               </div>
               <div className="mt-3">
                 <textarea
@@ -1686,14 +1759,21 @@ function ImageEditorApp() {
                   toneClassName="bg-gradient-to-r from-violet-500/90 to-purple-400/90 hover:from-violet-400 hover:to-purple-300"
                 />
                 <PositionButton
-                  onClick={handleMakeCircular}
-                  disabled={controlsDisabled}
-                  label="Circular"
-                  icon={Circle}
-                  toneClassName="bg-gradient-to-r from-fuchsia-500/90 to-pink-400/90 hover:from-fuchsia-400 hover:to-pink-300"
-                />
-              </div>
-            </section>
+                   onClick={handleMakeCircular}
+                   disabled={controlsDisabled}
+                   label="Circular"
+                   icon={Circle}
+                   toneClassName="bg-gradient-to-r from-fuchsia-500/90 to-pink-400/90 hover:from-fuchsia-400 hover:to-pink-300"
+                 />
+                 <PositionButton
+                   onClick={handlePrettify}
+                   disabled={controlsDisabled}
+                   label="Prettify"
+                   icon={Wand2}
+                   toneClassName="bg-gradient-to-r from-cyan-400/90 to-blue-300/90 hover:from-cyan-300 hover:to-blue-200"
+                 />
+               </div>
+             </section>
 
             <section className="app-card rounded-3xl p-5">
               <div className="flex items-center justify-between gap-3">
