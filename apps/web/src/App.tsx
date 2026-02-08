@@ -299,16 +299,16 @@ function ImageEditorApp() {
      const handleKeyDown = (e: KeyboardEvent) => {
        if (!images || images.length === 0 || controlsDisabled) return;
 
-       // Map arrow keys and hjkl to directions
+       // Map arrow keys to directions
        let direction: "up" | "down" | "left" | "right" | null = null;
 
-       if (e.key === "ArrowUp" || e.key === "k") {
+       if (e.key === "ArrowUp") {
          direction = "up";
-       } else if (e.key === "ArrowDown" || e.key === "j") {
+       } else if (e.key === "ArrowDown") {
          direction = "down";
-       } else if (e.key === "ArrowLeft" || e.key === "h") {
+       } else if (e.key === "ArrowLeft") {
          direction = "left";
-       } else if (e.key === "ArrowRight" || e.key === "l") {
+       } else if (e.key === "ArrowRight") {
          direction = "right";
        }
 
