@@ -1,10 +1,6 @@
 import { useState, useEffect } from "react";
 import {
-  Authenticated,
-  AuthLoading,
-  Unauthenticated,
   useMutation,
-  useConvexAuth,
 } from "convex/react";
 import { SignInButton, UserButton, useUser } from "@clerk/clerk-react";
 import { Button } from "./components/ui/button";
@@ -133,14 +129,13 @@ function SignedOutView() {
 
 function SignedInApp() {
   const { user, isLoaded: clerkLoaded } = useUser();
-  const { isAuthenticated, isLoading: convexLoading } = useConvexAuth();
   const upsertUser = useMutation(api.users.upsertCurrentUser);
   const [isSynced, setIsSynced] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const userId = user?.id;
 
   useEffect(() => {
-    if (!clerkLoaded || !user || convexLoading || !isAuthenticated) return;
+    if (!clerkLoaded || !user) return;
     let cancelled = false;
     setIsSynced(false);
     setSyncError(null);
@@ -162,7 +157,7 @@ function SignedInApp() {
     return () => {
       cancelled = true;
     };
-  }, [clerkLoaded, userId, convexLoading, isAuthenticated, upsertUser]);
+  }, [clerkLoaded, userId, upsertUser]);
 
   if (syncError) {
     return (
@@ -186,7 +181,7 @@ function SignedInApp() {
     );
   }
 
-  if (!clerkLoaded || !isSynced || convexLoading) {
+  if (!clerkLoaded || !isSynced) {
     return (
       <AuthLoadingView
         title="Setting up your workspace"
@@ -199,31 +194,24 @@ function SignedInApp() {
 }
 
 function App() {
-  const { isAuthenticated, isLoading } = useConvexAuth();
-  const { isSignedIn: clerkSignedIn } = useUser();
+  const { isLoaded, isSignedIn: clerkSignedIn } = useUser();
 
-  console.log("App auth state:", {
-    convexAuthenticated: isAuthenticated,
-    convexLoading: isLoading,
-    clerkSignedIn,
-  });
+  // For self-hosted Convex, we use Clerk's auth status instead of Convex's
+  // because JWT validation doesn't work the same way on self-hosted
+  if (!isLoaded) {
+    return (
+      <AuthLoadingView
+        title="Connecting"
+        subtitle="Confirming your session with the image workspace."
+      />
+    );
+  }
 
-  return (
-    <>
-      <AuthLoading>
-        <AuthLoadingView
-          title="Connecting"
-          subtitle="Confirming your session with the image workspace."
-        />
-      </AuthLoading>
-      <Unauthenticated>
-        <SignedOutView />
-      </Unauthenticated>
-      <Authenticated>
-        <SignedInApp />
-      </Authenticated>
-    </>
-  );
+  if (!clerkSignedIn) {
+    return <SignedOutView />;
+  }
+
+  return <SignedInApp />;
 }
 
 function ImageEditorApp() {
