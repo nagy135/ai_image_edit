@@ -10,6 +10,7 @@
     "dev:web": "turbo dev --filter=web",
     "dev:docker": "turbo dev --filter=@repo/docker",
     "docker:down": "docker compose -f packages/docker/docker-compose.yml down",
+    "docker:up": "docker compose -f packages/docker/docker-compose.yml up -d",
     "docker:admin-key": "turbo admin-key --filter=@repo/docker",
     "convex:deploy": "turbo deploy --filter=@repo/convex-backend",
     "build": "turbo build",
