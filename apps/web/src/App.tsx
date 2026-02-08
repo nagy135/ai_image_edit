@@ -465,45 +465,104 @@ function ImageEditorApp() {
 
     const handleCopyCurrentImage = async () => {
       // Get the image URL directly from currentImage at click time
-      const imageSrc = currentImage.url
+      const currentImageSrcForCopy = currentImage.url
         ? getImageUrl(currentImage.url, currentImage.createdAt)
         : "";
       
-      if (!imageSrc) return;
+      if (!currentImageSrcForCopy) return;
+
+      // Check if we're in sideBySide mode and have an original image to include
+      const isSideBySideMode = imageViewerMode === "sideBySide";
+      const originalImageSrc = originalImage.url
+        ? getImageUrl(originalImage.url, originalImage.createdAt)
+        : "";
+      const shouldCombineImages = isSideBySideMode && originalImageSrc && originalImage._id !== currentImage._id;
 
       setCopyState("copying");
       try {
-        // Load image into canvas to convert to PNG (clipboard only reliably supports PNG)
-        const img = new Image();
-        img.crossOrigin = "anonymous";
+        // Load current image
+        const currentImg = new Image();
+        currentImg.crossOrigin = "anonymous";
         
-        const loadPromise = new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = () => reject(new Error("Failed to load image"));
+        const currentLoadPromise = new Promise<void>((resolve, reject) => {
+          currentImg.onload = () => resolve();
+          currentImg.onerror = () => reject(new Error("Failed to load current image"));
         });
         
-        img.src = imageSrc;
-        await loadPromise;
+        currentImg.src = currentImageSrcForCopy;
+        await currentLoadPromise;
 
-        // Draw to canvas and convert to PNG blob
-        const canvas = document.createElement("canvas");
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          throw new Error("Failed to get canvas context");
+        let pngBlob: Blob;
+
+        if (shouldCombineImages) {
+          // Load original image for side-by-side
+          const originalImg = new Image();
+          originalImg.crossOrigin = "anonymous";
+          
+          const originalLoadPromise = new Promise<void>((resolve, reject) => {
+            originalImg.onload = () => resolve();
+            originalImg.onerror = () => reject(new Error("Failed to load original image"));
+          });
+          
+          originalImg.src = originalImageSrc;
+          await originalLoadPromise;
+
+          // Create combined side-by-side canvas
+          const gap = 20; // Gap between images
+          const maxHeight = Math.max(originalImg.naturalHeight, currentImg.naturalHeight);
+          const totalWidth = originalImg.naturalWidth + gap + currentImg.naturalWidth;
+          
+          const canvas = document.createElement("canvas");
+          canvas.width = totalWidth;
+          canvas.height = maxHeight;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            throw new Error("Failed to get canvas context");
+          }
+
+          // Fill background with dark color (matches app theme)
+          ctx.fillStyle = "#1a1a1a";
+          ctx.fillRect(0, 0, totalWidth, maxHeight);
+
+          // Draw original image on the left (vertically centered)
+          const originalY = (maxHeight - originalImg.naturalHeight) / 2;
+          ctx.drawImage(originalImg, 0, originalY);
+
+          // Draw current image on the right (vertically centered)
+          const currentX = originalImg.naturalWidth + gap;
+          const currentY = (maxHeight - currentImg.naturalHeight) / 2;
+          ctx.drawImage(currentImg, currentX, currentY);
+
+          pngBlob = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob(
+              (blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error("Failed to create PNG blob"));
+              },
+              "image/png"
+            );
+          });
+        } else {
+          // Single image copy (original behavior)
+          const canvas = document.createElement("canvas");
+          canvas.width = currentImg.naturalWidth;
+          canvas.height = currentImg.naturalHeight;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            throw new Error("Failed to get canvas context");
+          }
+          ctx.drawImage(currentImg, 0, 0);
+
+          pngBlob = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob(
+              (blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error("Failed to create PNG blob"));
+              },
+              "image/png"
+            );
+          });
         }
-        ctx.drawImage(img, 0, 0);
-
-        const pngBlob = await new Promise<Blob>((resolve, reject) => {
-          canvas.toBlob(
-            (blob) => {
-              if (blob) resolve(blob);
-              else reject(new Error("Failed to create PNG blob"));
-            },
-            "image/png"
-          );
-        });
 
         // Copy PNG to clipboard
         const ClipboardItemCtor = (window as any).ClipboardItem;
@@ -513,7 +572,7 @@ function ImageEditorApp() {
           });
           await navigator.clipboard.write([clipboardItem]);
           setCopyState("copied");
-          showImageActionMessage("Copied image to clipboard");
+          showImageActionMessage(shouldCombineImages ? "Copied side-by-side image" : "Copied image to clipboard");
           return;
         }
 
