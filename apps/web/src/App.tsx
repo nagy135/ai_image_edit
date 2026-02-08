@@ -1011,10 +1011,47 @@ function App() {
                    onRelease={handleBrightnessRelease}
                    disabled={controlsDisabled}
                  />
-               </div>
-             </section>
-           </aside>
-        </main>
+                </div>
+              </section>
+
+              <section className="app-card rounded-3xl p-5">
+                <h2 className="text-sm font-semibold">Describe an edit</h2>
+                <p className="mt-1 text-xs text-[color:var(--app-muted)]">
+                  {isBatchMode
+                    ? "Add multiple prompts, then generate once."
+                    : "Submit to generate immediately."}
+                </p>
+                <div className="mt-4">
+                  <textarea
+                    value={manualPrompt}
+                    onChange={(e) => setManualPrompt(e.target.value)}
+                    placeholder="Describe an edit"
+                    rows={4}
+                    disabled={controlsDisabled}
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/90 placeholder:text-white/40 focus:outline-none focus:ring-0 app-focus disabled:opacity-50"
+                  />
+                  <div className="mt-3 flex items-end justify-between gap-2">
+                    <span className="text-xs text-[color:var(--app-faint)]">
+                      {isBatchMode
+                        ? `Queued: ${pendingPrompts.length}`
+                        : "Press button to generate"}
+                    </span>
+                    <Button
+                      type="button"
+                      onClick={handleManualSubmit}
+                      disabled={
+                        controlsDisabled || manualPrompt.trim().length === 0
+                      }
+                      variant="ghost"
+                      className="h-auto rounded-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isBatchMode ? "Add prompt" : "Generate"}
+                    </Button>
+                  </div>
+                </div>
+              </section>
+            </aside>
+         </main>
       </div>
     </div>
   );
