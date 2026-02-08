@@ -7,6 +7,7 @@ import "./index.css";
 import App from "./App";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
+console.log("================\n", "convex: ", convex, "\n================");
 const clerkPublishableKey = import.meta.env
   .VITE_CLERK_PUBLISHABLE_KEY as string;
 
@@ -21,5 +22,5 @@ createRoot(document.getElementById("root")!).render(
         <App />
       </ConvexProviderWithClerk>
     </ClerkProvider>
-  </StrictMode>
+  </StrictMode>,
 );
