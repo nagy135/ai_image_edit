@@ -986,91 +986,9 @@ function App() {
                    toneClassName="bg-gradient-to-r from-fuchsia-500/90 to-pink-400/90 hover:from-fuchsia-400 hover:to-pink-300"
                  />
                </div>
-             </section>
+              </section>
 
-             <section className="app-card rounded-3xl p-5">
-               <div className="flex items-center justify-between gap-3">
-                 <h2 className="text-sm font-semibold">Generation mode</h2>
-                 <Button
-                   type="button"
-                   onClick={handleBatchGenerate}
-                   disabled={
-                     controlsDisabled ||
-                     !isBatchMode ||
-                     pendingPrompts.length === 0
-                   }
-                   variant="ghost"
-                   className="h-auto rounded-full px-3 py-1 text-xs font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                 >
-                   Generate
-                 </Button>
-               </div>
-               <div className="mt-4 flex items-center justify-between">
-                 <div className="flex items-center gap-2">
-                   <span className="text-xs text-[color:var(--app-muted)]">
-                     Oneshot
-                   </span>
-                   <button
-                     type="button"
-                     onClick={() => {
-                       if (controlsDisabled) return;
-                       setIsBatchMode((prev) => !prev);
-                       setPendingPrompts([]);
-                     }}
-                     disabled={controlsDisabled}
-                     className={`relative h-6 w-11 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                       isBatchMode
-                         ? "bg-teal-400/80 border-teal-200/60"
-                         : "bg-white/10 border-white/20"
-                     }`}
-                   >
-                     <span
-                       className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-                         isBatchMode ? "left-5" : "left-0.5"
-                       }`}
-                     />
-                   </button>
-                   <span className="text-xs text-[color:var(--app-muted)]">
-                     Batch
-                   </span>
-                 </div>
-                 <span className="text-xs text-[color:var(--app-faint)]">
-                   {isBatchMode
-                     ? `Queued prompts: ${pendingPrompts.length}`
-                     : "Runs instantly"}
-                 </span>
-               </div>
-               <div className="mt-4">
-                 <textarea
-                   value={manualPrompt}
-                   onChange={(e) => setManualPrompt(e.target.value)}
-                   placeholder="Describe an edit"
-                   rows={4}
-                   disabled={controlsDisabled}
-                   className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white/90 placeholder:text-white/40 focus:outline-none focus:ring-0 app-focus disabled:opacity-50"
-                 />
-                 <div className="mt-3 flex items-center justify-between">
-                   <span className="text-xs text-[color:var(--app-faint)]">
-                     {isBatchMode
-                       ? "Add multiple prompts, then generate once."
-                       : "Submit to generate immediately."}
-                   </span>
-                   <Button
-                     type="button"
-                     onClick={handleManualSubmit}
-                     disabled={
-                       controlsDisabled || manualPrompt.trim().length === 0
-                     }
-                     variant="ghost"
-                     className="h-auto rounded-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                   >
-                     {isBatchMode ? "Add prompt" : "Generate"}
-                   </Button>
-                 </div>
-               </div>
-             </section>
-
-             <section className="app-card rounded-3xl p-5">
+              <section className="app-card rounded-3xl p-5">
                <div className="flex items-center justify-between gap-3">
                  <h2 className="text-sm font-semibold">Adjustments</h2>
                  <span className="app-badge rounded-full px-3 py-1 text-xs text-[color:var(--app-muted)]">
