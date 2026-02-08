@@ -1,6 +1,7 @@
 import { APP_SHELL_STYLE } from "../constants";
 import type { ChainWithUrl, Id } from "../types";
 import { getImageUrl } from "../utils";
+import { UserButton } from "@clerk/clerk-react";
 
 interface UploadViewProps {
   allChains?: ChainWithUrl[];
@@ -35,6 +36,10 @@ export function UploadView({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <UserButton
+              afterSignOutUrl="/"
+              appearance={{ elements: { avatarBox: "h-8 w-8" } }}
+            />
             <span className="app-badge rounded-full px-3 py-1 text-xs text-[color:var(--app-muted)]">
               {uploadDisabled ? "Uploading..." : "Convex storage"}
             </span>

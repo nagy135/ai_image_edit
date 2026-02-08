@@ -97,12 +97,17 @@ export const generateNextStep = action({
     storageId: Doc<"images">["storageId"];
     url: string | null;
   }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
     // Load chain + images
     const chain = (await ctx.runQuery(internal.images.internalGetChain, {
       chainId: args.chainId,
     })) as Doc<"imageChains"> | null;
 
-    if (!chain) {
+    if (!chain || chain.userId !== identity.subject) {
       throw new Error("Chain not found");
     }
 

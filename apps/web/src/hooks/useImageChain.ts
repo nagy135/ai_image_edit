@@ -185,8 +185,12 @@ export function useImageChain(
     const ok = window.confirm("Delete this project and reset to upload?");
     if (!ok) return;
     try {
-      await deleteChain({ chainId: currentChainId });
-      handleNewImage();
+      const result = await deleteChain({ chainId: currentChainId });
+      if (result?.deleted) {
+        handleNewImage();
+      } else {
+        alert("Failed to delete project");
+      }
     } catch (error) {
       console.error("Error deleting chain:", error);
       alert("Failed to delete project");

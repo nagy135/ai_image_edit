@@ -13,6 +13,7 @@
     "@repo/convex-backend": "workspace:*",
     "@radix-ui/react-slot": "^1.1.2",
     "@radix-ui/react-tooltip": "^1.1.6",
+    "@clerk/clerk-react": "^5.17.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "convex": "^1.17.4",

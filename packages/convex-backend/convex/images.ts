@@ -20,9 +20,41 @@ const editTypeValidator = v.union(
   v.literal("unknown"),
 );
 
+const requireAuth = async (ctx: { auth: { getUserIdentity: () => Promise<any> } }) => {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new Error("Not authenticated");
+  }
+  return identity;
+};
+
+const getChainForUser = async (
+  ctx: { auth: { getUserIdentity: () => Promise<any> }; db: any },
+  chainId: any,
+) => {
+  const identity = await requireAuth(ctx);
+  const chain = await ctx.db.get(chainId);
+  if (!chain || chain.userId !== identity.subject) {
+    return { chain: null, identity };
+  }
+  return { chain, identity };
+};
+
+const requireChainOwner = async (
+  ctx: { auth: { getUserIdentity: () => Promise<any> }; db: any },
+  chainId: any,
+) => {
+  const { chain, identity } = await getChainForUser(ctx, chainId);
+  if (!chain) {
+    throw new Error("Chain not found");
+  }
+  return { chain, identity };
+};
+
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
+    await requireAuth(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -31,6 +63,9 @@ export const generateUploadUrl = mutation({
 export const list = query({
   args: { chainId: v.id("imageChains") },
   handler: async (ctx, args) => {
+    const { chain } = await getChainForUser(ctx, args.chainId);
+    if (!chain) return [];
+
     const images = await ctx.db
       .query("images")
       .withIndex("by_chain", (q) => q.eq("chainId", args.chainId))
@@ -50,7 +85,14 @@ export const list = query({
 export const getActiveChain = query({
   args: {},
   handler: async (ctx) => {
-    const chains = await ctx.db.query("imageChains").order("desc").take(1);
+    const identity = await requireAuth(ctx);
+    const chains = await ctx.db
+      .query("imageChains")
+      .withIndex("by_user_created", (q) =>
+        q.eq("userId", identity.subject),
+      )
+      .order("desc")
+      .take(1);
     const chain = chains[0];
     if (!chain) return null;
     return {
@@ -64,7 +106,14 @@ export const getActiveChain = query({
 export const listChains = query({
   args: {},
   handler: async (ctx) => {
-    const chains = await ctx.db.query("imageChains").order("desc").collect();
+    const identity = await requireAuth(ctx);
+    const chains = await ctx.db
+      .query("imageChains")
+      .withIndex("by_user_created", (q) =>
+        q.eq("userId", identity.subject),
+      )
+      .order("desc")
+      .collect();
 
     return await Promise.all(
       chains.map(async (c) => ({
@@ -79,7 +128,7 @@ export const listChains = query({
 export const getChain = query({
   args: { chainId: v.id("imageChains") },
   handler: async (ctx, args) => {
-    const chain = await ctx.db.get(args.chainId);
+    const { chain } = await getChainForUser(ctx, args.chainId);
     if (!chain) return null;
     return {
       ...chain,
@@ -95,10 +144,12 @@ export const createChain = mutation({
     originalStorageId: v.id("_storage"),
   },
   handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx);
     const now = Date.now();
     
     // Create the chain
     const chainId = await ctx.db.insert("imageChains", {
+      userId: identity.subject,
       name: args.name,
       originalStorageId: args.originalStorageId,
       createdAt: now,
@@ -162,6 +213,7 @@ export const addEditedImage = mutation({
     brightnessPercent: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireChainOwner(ctx, args.chainId);
     const imageId = await ctx.db.insert("images", {
       chainId: args.chainId,
       parentImageId: args.parentImageId,
@@ -209,6 +261,7 @@ export const internalGetImage = internalQuery({
 export const deleteLastStep = mutation({
   args: { chainId: v.id("imageChains") },
   handler: async (ctx, args) => {
+    await requireChainOwner(ctx, args.chainId);
     const images = await ctx.db
       .query("images")
       .withIndex("by_chain", (q) => q.eq("chainId", args.chainId))
@@ -240,8 +293,14 @@ export const deleteLastStep = mutation({
 export const deleteLeafImage = mutation({
   args: { imageId: v.id("images") },
   handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx);
     const image = await ctx.db.get(args.imageId);
     if (!image) {
+      throw new Error("Image not found");
+    }
+
+    const chain = await ctx.db.get(image.chainId);
+    if (!chain || chain.userId !== identity.subject) {
       throw new Error("Image not found");
     }
 
@@ -276,8 +335,11 @@ export const deleteLeafImage = mutation({
 export const deleteChain = mutation({
   args: { chainId: v.id("imageChains") },
   handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx);
     const chain = await ctx.db.get(args.chainId);
-    if (!chain) return { deleted: false };
+    if (!chain || chain.userId !== identity.subject) {
+      throw new Error("Chain not found");
+    }
 
     const images = await ctx.db
       .query("images")

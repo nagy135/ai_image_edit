@@ -1,4 +1,11 @@
 import { useState, useEffect } from "react";
+import {
+  Authenticated,
+  AuthLoading,
+  Unauthenticated,
+  useMutation,
+} from "convex/react";
+import { SignInButton, UserButton, useUser } from "@clerk/clerk-react";
 import { Button } from "./components/ui/button";
 import {
   Select,
@@ -33,6 +40,7 @@ import { PositionButton } from "./components/buttons/PositionButton";
 import { UploadView } from "./components/UploadView";
 import { useImageChain } from "./hooks/useImageChain";
 import { useImageGeneration } from "./hooks/useImageGeneration";
+import { api } from "@repo/convex-backend/convex/_generated/api";
 import {
   getSelectedImage,
   getLatestImage,
@@ -45,7 +53,191 @@ import {
 import { APP_SHELL_STYLE, EDIT_TYPE_ICON_MAP, PROMPTS } from "./constants";
 import type { Id } from "./types";
 
+function AuthLoadingView({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="min-h-screen px-6 py-10" style={APP_SHELL_STYLE}>
+      <div className="mx-auto max-w-4xl app-anim-in">
+        <div className="app-card rounded-3xl p-6 lg:p-8 text-center">
+          <div className="mx-auto mb-4 h-12 w-12 rounded-2xl bg-white/5 border border-white/10 grid place-items-center">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+          </div>
+          <h1 className="text-lg font-semibold">{title}</h1>
+          <p className="mt-2 text-sm text-[color:var(--app-muted)]">
+            {subtitle}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SignedOutView() {
+  return (
+    <div className="min-h-screen px-6 py-10" style={APP_SHELL_STYLE}>
+      <div className="mx-auto max-w-6xl app-anim-in">
+        <header className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-teal-400 to-lime-300 shadow-[0_18px_40px_rgba(45,212,191,0.18)]" />
+            <div>
+              <p className="text-xs tracking-wide text-[color:var(--app-muted)]">
+                AI Image Edit
+              </p>
+              <h1 className="text-lg font-semibold">
+                Private AI edits, just for you
+              </h1>
+            </div>
+          </div>
+          <SignInButton mode="modal">
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-auto rounded-full px-4 py-2 text-xs font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition"
+            >
+              Sign in
+            </Button>
+          </SignInButton>
+        </header>
+
+        <main className="mt-10 grid gap-6 lg:grid-cols-[1.2fr_0.8fr] items-start">
+          <section className="app-card rounded-3xl p-6 lg:p-8">
+            <h2 className="text-xl font-semibold">Keep every chain private</h2>
+            <p className="mt-2 text-sm text-[color:var(--app-muted)]">
+              Sign in to create a personal workspace. Each chain is locked to
+              your account and only visible to you.
+            </p>
+            <div className="mt-6 grid gap-3">
+              {[
+                "Upload original images and store every edit step.",
+                "Branch histories without losing your earlier versions.",
+                "Return to any project instantly from your dashboard.",
+              ].map((text) => (
+                <div
+                  key={text}
+                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[color:var(--app-muted)]"
+                >
+                  {text}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="app-card rounded-3xl p-6 lg:p-8">
+            <h2 className="text-xl font-semibold">Ready to start?</h2>
+            <p className="mt-2 text-sm text-[color:var(--app-muted)]">
+              Sign in to unlock your personal chain library.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <SignInButton mode="modal">
+                <Button
+                  type="button"
+                  className="h-auto rounded-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition"
+                >
+                  Sign in
+                </Button>
+              </SignInButton>
+              <span className="text-xs text-[color:var(--app-faint)]">
+                New here? Sign up takes seconds.
+              </span>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function SignedInApp() {
+  const { user, isLoaded } = useUser();
+  const upsertUser = useMutation(api.users.upsertCurrentUser);
+  const [isSynced, setIsSynced] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const userId = user?.id;
+
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+    let cancelled = false;
+    setIsSynced(false);
+    setSyncError(null);
+
+    const name = user.fullName ?? user.username ?? undefined;
+    const email = user.primaryEmailAddress?.emailAddress ?? undefined;
+    const imageUrl = user.imageUrl ?? undefined;
+
+    void upsertUser({ name, email, imageUrl })
+      .then(() => {
+        if (!cancelled) setIsSynced(true);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Error syncing user profile:", error);
+        setSyncError("We couldn't sync your profile. Please try again.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, userId, upsertUser]);
+
+  if (syncError) {
+    return (
+      <div className="min-h-screen px-6 py-10" style={APP_SHELL_STYLE}>
+        <div className="mx-auto max-w-3xl app-anim-in">
+          <div className="app-card rounded-3xl p-6 lg:p-8 text-center">
+            <h1 className="text-lg font-semibold">Sync error</h1>
+            <p className="mt-2 text-sm text-[color:var(--app-muted)]">
+              {syncError}
+            </p>
+            <Button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-5 h-auto rounded-full px-4 py-2 text-xs font-semibold bg-white/10 hover:bg-white/20 transition"
+            >
+              Retry
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoaded || !isSynced) {
+    return (
+      <AuthLoadingView
+        title="Setting up your workspace"
+        subtitle="Syncing your profile so your chains stay private."
+      />
+    );
+  }
+
+  return <ImageEditorApp />;
+}
+
 function App() {
+  return (
+    <>
+      <AuthLoading>
+        <AuthLoadingView
+          title="Connecting"
+          subtitle="Confirming your session with the image workspace."
+        />
+      </AuthLoading>
+      <Unauthenticated>
+        <SignedOutView />
+      </Unauthenticated>
+      <Authenticated>
+        <SignedInApp />
+      </Authenticated>
+    </>
+  );
+}
+
+function ImageEditorApp() {
   // Slider state
   const [selectedImageId, setSelectedImageId] = useState<Id<"images"> | null>(
     null,
@@ -367,6 +559,10 @@ function App() {
           </div>
 
           <div className="flex items-center gap-1.5 lg:gap-2">
+            <UserButton
+              afterSignOutUrl="/"
+              appearance={{ elements: { avatarBox: "h-8 w-8" } }}
+            />
             {isGenerating && (
               <span className="hidden sm:inline app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs text-[color:var(--app-muted)]">
                 Generating...
