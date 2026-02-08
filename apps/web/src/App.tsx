@@ -16,24 +16,30 @@ import {
   TooltipTrigger,
 } from "./components/ui/tooltip";
 import {
-   AlignLeft,
-   AlignRight,
-   ArrowLeft,
-   Baby,
-   Circle,
-   Copy,
-   CornerDownRight,
-   Link2,
-   Download,
-   Eraser,
-   Focus,
-   ImagePlus,
-   MoveDown,
-   Sparkles,
-   Square,
-   Trash2,
-   Wand2,
- } from "lucide-react";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "./components/ui/dialog";
+import {
+  AlignLeft,
+  AlignRight,
+  ArrowLeft,
+  Baby,
+  Circle,
+  Copy,
+  CornerDownRight,
+  Link2,
+  Download,
+  Eraser,
+  Focus,
+  ImagePlus,
+  MoveDown,
+  Sparkles,
+  Square,
+  Trash2,
+  Wand2,
+} from "lucide-react";
 import { EditSlider } from "./components/EditSlider";
 import { PositionButton } from "./components/buttons/PositionButton";
 import { UploadView } from "./components/UploadView";
@@ -226,6 +232,7 @@ function ImageEditorApp() {
   const setImageViewerMode = useImageViewerStore((s) => s.setMode);
   const [alternateShowingOriginal, setAlternateShowingOriginal] =
     useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
   // Fetch user credits
   const currentUser = useQuery(
@@ -435,12 +442,12 @@ function ImageEditorApp() {
     );
   };
 
-   const latestImage = getLatestImage(images);
-   const latestStepNumber = latestImage?.stepNumber ?? 0;
+  const latestImage = getLatestImage(images);
+  const latestStepNumber = latestImage?.stepNumber ?? 0;
 
-   const currentImageSrc = currentImage.url
-     ? getImageUrl(currentImage.url, currentImage.createdAt)
-     : "";
+  const currentImageSrc = currentImage.url
+    ? getImageUrl(currentImage.url, currentImage.createdAt)
+    : "";
 
   const showImageActionMessage = (message: string) => {
     setImageActionMessage(message);
@@ -464,195 +471,202 @@ function ImageEditorApp() {
     }
   };
 
-    const handleCopyCurrentImage = async () => {
-      // Get the image URL directly from currentImage at click time
-      const currentImageSrcForCopy = currentImage.url
-        ? getImageUrl(currentImage.url, currentImage.createdAt)
-        : "";
-      
-      if (!currentImageSrcForCopy) return;
+  const handleCopyCurrentImage = async () => {
+    // Get the image URL directly from currentImage at click time
+    const currentImageSrcForCopy = currentImage.url
+      ? getImageUrl(currentImage.url, currentImage.createdAt)
+      : "";
 
-      // Check if we're in sideBySide mode and have an original image to include
-      const isSideBySideMode = imageViewerMode === "sideBySide";
-      const originalImageSrc = originalImage.url
-        ? getImageUrl(originalImage.url, originalImage.createdAt)
-        : "";
-      const shouldCombineImages = isSideBySideMode && originalImageSrc && originalImage._id !== currentImage._id;
+    if (!currentImageSrcForCopy) return;
 
-      setCopyState("copying");
-      try {
-        // Load current image
-        const currentImg = new Image();
-        currentImg.crossOrigin = "anonymous";
-        
-        const currentLoadPromise = new Promise<void>((resolve, reject) => {
-          currentImg.onload = () => resolve();
-          currentImg.onerror = () => reject(new Error("Failed to load current image"));
+    // Check if we're in sideBySide mode and have an original image to include
+    const isSideBySideMode = imageViewerMode === "sideBySide";
+    const originalImageSrc = originalImage.url
+      ? getImageUrl(originalImage.url, originalImage.createdAt)
+      : "";
+    const shouldCombineImages =
+      isSideBySideMode &&
+      originalImageSrc &&
+      originalImage._id !== currentImage._id;
+
+    setCopyState("copying");
+    try {
+      // Load current image
+      const currentImg = new Image();
+      currentImg.crossOrigin = "anonymous";
+
+      const currentLoadPromise = new Promise<void>((resolve, reject) => {
+        currentImg.onload = () => resolve();
+        currentImg.onerror = () =>
+          reject(new Error("Failed to load current image"));
+      });
+
+      currentImg.src = currentImageSrcForCopy;
+      await currentLoadPromise;
+
+      let pngBlob: Blob;
+
+      if (shouldCombineImages) {
+        // Load original image for side-by-side
+        const originalImg = new Image();
+        originalImg.crossOrigin = "anonymous";
+
+        const originalLoadPromise = new Promise<void>((resolve, reject) => {
+          originalImg.onload = () => resolve();
+          originalImg.onerror = () =>
+            reject(new Error("Failed to load original image"));
         });
-        
-        currentImg.src = currentImageSrcForCopy;
-        await currentLoadPromise;
 
-        let pngBlob: Blob;
+        originalImg.src = originalImageSrc;
+        await originalLoadPromise;
 
-        if (shouldCombineImages) {
-          // Load original image for side-by-side
-          const originalImg = new Image();
-          originalImg.crossOrigin = "anonymous";
-          
-          const originalLoadPromise = new Promise<void>((resolve, reject) => {
-            originalImg.onload = () => resolve();
-            originalImg.onerror = () => reject(new Error("Failed to load original image"));
-          });
-          
-          originalImg.src = originalImageSrc;
-          await originalLoadPromise;
+        // Create combined side-by-side canvas
+        const gap = 20; // Gap between images
+        const maxHeight = Math.max(
+          originalImg.naturalHeight,
+          currentImg.naturalHeight,
+        );
+        const totalWidth =
+          originalImg.naturalWidth + gap + currentImg.naturalWidth;
 
-          // Create combined side-by-side canvas
-          const gap = 20; // Gap between images
-          const maxHeight = Math.max(originalImg.naturalHeight, currentImg.naturalHeight);
-          const totalWidth = originalImg.naturalWidth + gap + currentImg.naturalWidth;
-          
-          const canvas = document.createElement("canvas");
-          canvas.width = totalWidth;
-          canvas.height = maxHeight;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            throw new Error("Failed to get canvas context");
-          }
-
-          // Fill background with dark color (matches app theme)
-          ctx.fillStyle = "#1a1a1a";
-          ctx.fillRect(0, 0, totalWidth, maxHeight);
-
-          // Draw original image on the left (vertically centered)
-          const originalY = (maxHeight - originalImg.naturalHeight) / 2;
-          ctx.drawImage(originalImg, 0, originalY);
-
-          // Draw current image on the right (vertically centered)
-          const currentX = originalImg.naturalWidth + gap;
-          const currentY = (maxHeight - currentImg.naturalHeight) / 2;
-          ctx.drawImage(currentImg, currentX, currentY);
-
-          pngBlob = await new Promise<Blob>((resolve, reject) => {
-            canvas.toBlob(
-              (blob) => {
-                if (blob) resolve(blob);
-                else reject(new Error("Failed to create PNG blob"));
-              },
-              "image/png"
-            );
-          });
-        } else {
-          // Single image copy (original behavior)
-          const canvas = document.createElement("canvas");
-          canvas.width = currentImg.naturalWidth;
-          canvas.height = currentImg.naturalHeight;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            throw new Error("Failed to get canvas context");
-          }
-          ctx.drawImage(currentImg, 0, 0);
-
-          pngBlob = await new Promise<Blob>((resolve, reject) => {
-            canvas.toBlob(
-              (blob) => {
-                if (blob) resolve(blob);
-                else reject(new Error("Failed to create PNG blob"));
-              },
-              "image/png"
-            );
-          });
+        const canvas = document.createElement("canvas");
+        canvas.width = totalWidth;
+        canvas.height = maxHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          throw new Error("Failed to get canvas context");
         }
 
-        // Copy PNG to clipboard
-        const ClipboardItemCtor = (window as any).ClipboardItem;
-        if (navigator.clipboard?.write && ClipboardItemCtor) {
-          const clipboardItem = new ClipboardItemCtor({
-            "image/png": pngBlob,
-          });
-          await navigator.clipboard.write([clipboardItem]);
-          setCopyState("copied");
-          showImageActionMessage(shouldCombineImages ? "Copied side-by-side image" : "Copied image to clipboard");
-          return;
-        }
+        // Fill background with dark color (matches app theme)
+        ctx.fillStyle = "#1a1a1a";
+        ctx.fillRect(0, 0, totalWidth, maxHeight);
 
-        throw new Error("Clipboard API write not available");
-      } catch (error) {
-        console.error("Copy failed:", error);
-        setCopyState("error");
-        showImageActionMessage("Failed to copy image");
-      } finally {
-        window.setTimeout(() => {
-          setCopyState("idle");
-        }, 1500);
+        // Draw original image on the left (vertically centered)
+        const originalY = (maxHeight - originalImg.naturalHeight) / 2;
+        ctx.drawImage(originalImg, 0, originalY);
+
+        // Draw current image on the right (vertically centered)
+        const currentX = originalImg.naturalWidth + gap;
+        const currentY = (maxHeight - currentImg.naturalHeight) / 2;
+        ctx.drawImage(currentImg, currentX, currentY);
+
+        pngBlob = await new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Failed to create PNG blob"));
+          }, "image/png");
+        });
+      } else {
+        // Single image copy (original behavior)
+        const canvas = document.createElement("canvas");
+        canvas.width = currentImg.naturalWidth;
+        canvas.height = currentImg.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          throw new Error("Failed to get canvas context");
+        }
+        ctx.drawImage(currentImg, 0, 0);
+
+        pngBlob = await new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Failed to create PNG blob"));
+          }, "image/png");
+        });
       }
-    };
 
-   const handleDownloadCurrentImage = async () => {
-     // Get the image URL directly from currentImage at click time
-     const imageSrc = currentImage.url
-       ? getImageUrl(currentImage.url, currentImage.createdAt)
-       : "";
-     
-     if (!imageSrc) return;
+      // Copy PNG to clipboard
+      const ClipboardItemCtor = (window as any).ClipboardItem;
+      if (navigator.clipboard?.write && ClipboardItemCtor) {
+        const clipboardItem = new ClipboardItemCtor({
+          "image/png": pngBlob,
+        });
+        await navigator.clipboard.write([clipboardItem]);
+        setCopyState("copied");
+        showImageActionMessage(
+          shouldCombineImages
+            ? "Copied side-by-side image"
+            : "Copied image to clipboard",
+        );
+        return;
+      }
 
-     setDownloadState("downloading");
-     try {
-       const response = await fetch(imageSrc, {
-         credentials: "include",
-       });
-       if (!response.ok) {
-         throw new Error(`Failed to fetch image: ${response.status}`);
-       }
-       const blob = await response.blob();
+      throw new Error("Clipboard API write not available");
+    } catch (error) {
+      console.error("Copy failed:", error);
+      setCopyState("error");
+      showImageActionMessage("Failed to copy image");
+    } finally {
+      window.setTimeout(() => {
+        setCopyState("idle");
+      }, 1500);
+    }
+  };
 
-       const safeBaseName = (chain?.name ?? "image").trim() || "image";
-       const safeName = safeBaseName
-         .replace(/[^a-zA-Z0-9._-]+/g, "_")
-         .replace(/^_+|_+$/g, "");
-       const ext =
-         blob.type === "image/jpeg"
-           ? "jpg"
-           : blob.type === "image/webp"
-             ? "webp"
-             : "png";
-       const fileName = `${safeName || "image"}-step-${currentImage.stepNumber}.${ext}`;
+  const handleDownloadCurrentImage = async () => {
+    // Get the image URL directly from currentImage at click time
+    const imageSrc = currentImage.url
+      ? getImageUrl(currentImage.url, currentImage.createdAt)
+      : "";
 
-       const objectUrl = URL.createObjectURL(blob);
-       const a = document.createElement("a");
-       a.href = objectUrl;
-       a.download = fileName;
-       document.body.appendChild(a);
-       a.click();
-       a.remove();
-       URL.revokeObjectURL(objectUrl);
+    if (!imageSrc) return;
 
-       setDownloadState("done");
-       showImageActionMessage(`Downloaded ${fileName}`);
-     } catch (error) {
-       console.error("Download failed:", error);
-       try {
-         const a = document.createElement("a");
-         a.href = imageSrc;
-         a.target = "_blank";
-         a.rel = "noopener noreferrer";
-         document.body.appendChild(a);
-         a.click();
-         a.remove();
-         setDownloadState("done");
-         showImageActionMessage("Opened image in a new tab");
-       } catch (innerError) {
-         console.error("Download fallback failed:", innerError);
-         setDownloadState("error");
-         showImageActionMessage("Download failed");
-       }
-     } finally {
-       window.setTimeout(() => {
-         setDownloadState("idle");
-       }, 1200);
-     }
-   };
+    setDownloadState("downloading");
+    try {
+      const response = await fetch(imageSrc, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status}`);
+      }
+      const blob = await response.blob();
+
+      const safeBaseName = (chain?.name ?? "image").trim() || "image";
+      const safeName = safeBaseName
+        .replace(/[^a-zA-Z0-9._-]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+      const ext =
+        blob.type === "image/jpeg"
+          ? "jpg"
+          : blob.type === "image/webp"
+            ? "webp"
+            : "png";
+      const fileName = `${safeName || "image"}-step-${currentImage.stepNumber}.${ext}`;
+
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+
+      setDownloadState("done");
+      showImageActionMessage(`Downloaded ${fileName}`);
+    } catch (error) {
+      console.error("Download failed:", error);
+      try {
+        const a = document.createElement("a");
+        a.href = imageSrc;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setDownloadState("done");
+        showImageActionMessage("Opened image in a new tab");
+      } catch (innerError) {
+        console.error("Download fallback failed:", innerError);
+        setDownloadState("error");
+        showImageActionMessage("Download failed");
+      }
+    } finally {
+      window.setTimeout(() => {
+        setDownloadState("idle");
+      }, 1200);
+    }
+  };
 
   // Quick tool handlers
   const handleCenterClick = async () => {
@@ -886,53 +900,67 @@ function ImageEditorApp() {
       style={APP_SHELL_STYLE}
     >
       <div className="mx-auto max-w-6xl app-anim-in">
-         <header className="flex flex-wrap items-center justify-between gap-2 lg:gap-4">
-           <div className="flex items-center gap-2 lg:gap-3">
-             <Button
-               type="button"
-               onClick={handleNewImage}
-               disabled={controlsDisabled}
-               variant="ghost"
-               size="icon"
-               className="h-8 w-8 lg:h-10 lg:w-10 rounded-full border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-               title="Back to upload"
-             >
-               <ArrowLeft className="h-4 w-4 lg:h-5 lg:w-5" />
-             </Button>
-             <div className="h-8 w-8 lg:h-10 lg:w-10 rounded-xl lg:rounded-2xl bg-gradient-to-br from-teal-400 to-lime-300 shadow-[0_18px_40px_rgba(45,212,191,0.18)]" />
-             <div>
-               <p className="text-[10px] lg:text-xs tracking-wide text-[color:var(--app-muted)]">
-                 AI Image Edit
-               </p>
-               <h1 className="text-sm lg:text-lg font-semibold truncate max-w-[140px] sm:max-w-none">
-                 {chain?.name ?? "Untitled"}
-               </h1>
-             </div>
-           </div>
+        <header className="flex flex-wrap items-center justify-between gap-2 lg:gap-4">
+          <div className="flex items-center gap-2 lg:gap-3">
+            <Button
+              type="button"
+              onClick={handleNewImage}
+              disabled={controlsDisabled}
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 lg:h-10 lg:w-10 rounded-full border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Back to upload"
+            >
+              <ArrowLeft className="h-4 w-4 lg:h-5 lg:w-5" />
+            </Button>
+            <div className="h-8 w-8 lg:h-10 lg:w-10 rounded-xl lg:rounded-2xl bg-gradient-to-br from-teal-400 to-lime-300 shadow-[0_18px_40px_rgba(45,212,191,0.18)]" />
+            <div>
+              <p className="text-[10px] lg:text-xs tracking-wide text-[color:var(--app-muted)]">
+                AI Image Edit
+              </p>
+              <h1 className="text-sm lg:text-lg font-semibold truncate max-w-[140px] sm:max-w-none">
+                {chain?.name ?? "Untitled"}
+              </h1>
+            </div>
+          </div>
 
-           <div className="flex items-center gap-1.5 lg:gap-2">
-             <UserButton
-               afterSignOutUrl="/"
-               appearance={{ elements: { avatarBox: "h-8 w-8" } }}
-             />
-             <span
-               className={`app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs ${hasCredits ? "text-[color:var(--app-muted)]" : "text-red-400"}`}
-             >
-               Credits: {credits}
-             </span>
-             {isGenerating && (
-               <span className="hidden sm:inline app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs text-[color:var(--app-muted)]">
-                 Generating...
-               </span>
-             )}
-           </div>
-         </header>
+          <div className="flex items-center gap-1.5 lg:gap-2">
+            <UserButton
+              afterSignOutUrl="/"
+              appearance={{ elements: { avatarBox: "h-8 w-8" } }}
+            />
+            <span
+              className={`app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs ${hasCredits ? "text-[color:var(--app-muted)]" : "text-red-400"}`}
+            >
+              Credits: {credits}
+            </span>
+            {isGenerating && (
+              <span className="hidden sm:inline app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs text-[color:var(--app-muted)]">
+                Generating...
+              </span>
+            )}
+          </div>
+        </header>
 
         <main className="mt-6 grid gap-4 lg:gap-6 lg:grid-cols-[minmax(0,1fr)_420px] items-start">
           {/* Left column: Image + History (on large screens) */}
           <div className="space-y-4 lg:space-y-6">
             {/* Main image card */}
             <section className="app-card rounded-3xl p-3 lg:p-5">
+              {/* Mobile: History button - shown only on mobile */}
+              <div className="flex flex-row-reverse pb-2">
+                <div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setIsHistoryModalOpen(true)}
+                    variant="secondary"
+                    className="lg:hidden w-full h-auto rounded-2xl px-3 py-2 text-xs font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer"
+                  >
+                    History ({images.length} steps)
+                  </Button>
+                </div>
+              </div>
               <div className="relative rounded-2xl border border-white/10 bg-black/20 p-2 lg:p-3 overflow-hidden">
                 <div className="absolute right-2 top-2 z-20">
                   <div className="flex items-center gap-1 rounded-full border border-white/15 bg-black/60 backdrop-blur px-1 py-1">
@@ -1137,269 +1165,275 @@ function ImageEditorApp() {
                     : "No prompt for this step"}
                 </div>
               </div>
+
+              {/* Prompt display on mobile only */}
+              <div className="lg:hidden mt-2 text-[10px] text-[color:var(--app-faint)] break-words whitespace-pre-wrap">
+                {currentImage.prompt
+                  ? `"${currentImage.prompt}"`
+                  : "No prompt for this step"}
+              </div>
             </section>
 
-             {/* Mobile: Compact tools section - shown only on small screens */}
-             <section className="lg:hidden app-card rounded-2xl p-3">
-               <div className="flex items-center justify-between gap-2 pb-3 border-b border-white/10">
-                 <div className="flex items-center gap-2">
-                   <span className="text-[10px] text-[color:var(--app-muted)]">
-                     Oneshot
-                   </span>
-                   <button
-                     type="button"
-                     onClick={() => {
-                       if (controlsDisabled) return;
-                       setIsBatchMode((prev) => !prev);
-                       setPendingPrompts([]);
-                     }}
-                     disabled={controlsDisabled}
-                     className={`relative h-5 w-9 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                       isBatchMode
-                         ? "bg-teal-400/80 border-teal-200/60"
-                         : "bg-white/10 border-white/20"
-                     }`}
-                   >
-                     <span
-                       className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
-                         isBatchMode ? "left-4" : "left-0.5"
-                       }`}
-                     />
-                   </button>
-                   <span className="text-[10px] text-[color:var(--app-muted)]">
-                     Batch
-                   </span>
-                 </div>
-                 <Button
-                   type="button"
-                   onClick={handleBatchGenerate}
-                   disabled={
-                     controlsDisabled ||
-                     !isBatchMode ||
-                     pendingPrompts.length === 0
-                   }
-                   variant="ghost"
-                   className="h-auto rounded-full px-3 py-1 text-[10px] font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                 >
-                   Generate
-                 </Button>
-               </div>
-               <div className="mt-3 pb-3 border-b border-white/10">
-                 <label className="text-[10px] font-medium text-gray-300 block mb-2">
-                   Model
-                 </label>
-                 <Select
-                   value={selectedModel}
-                   onValueChange={setSelectedModel}
-                 >
-                   <SelectTrigger className="w-full">
-                     <SelectValue />
-                   </SelectTrigger>
-                   <SelectContent>
-                     <SelectItem value="gemini-2.5-flash-image">
-                       Gemini 2.5 Flash
-                     </SelectItem>
-                     <SelectItem value="gemini-3-pro-image-preview">
-                       Gemini 3 Pro Preview
-                     </SelectItem>
-                   </SelectContent>
-                 </Select>
-               </div>
-               <div className="mt-3 space-y-3">
-                 {/* Compact sliders */}
-                 <div className="space-y-2">
-                   <div className="flex flex-col gap-1">
-                     <div className="flex justify-between items-center">
-                       <span className="text-[10px] font-medium text-gray-300">
-                         Zoom
-                       </span>
-                       <span className="text-[10px] text-gray-400 tabular-nums">
-                         {zoomLevel}%
-                       </span>
-                     </div>
-                     <input
-                       type="range"
-                       min={0}
-                       max={200}
-                       value={zoomLevel}
-                       onChange={(e) => setZoomLevel(Number(e.target.value))}
-                       onPointerUp={() => {
-                         const base =
-                           getSelectedImage(images, selectedImageId)
-                             ?.zoomPercent ?? 100;
-                         if (zoomLevel !== base) handleZoomRelease(zoomLevel);
-                       }}
-                       disabled={controlsDisabled}
-                       style={{
-                         background: `linear-gradient(90deg, rgba(45,212,191,0.95) 0%, rgba(163,230,53,0.90) ${(zoomLevel / 200) * 100}%, rgba(255,255,255,0.14) ${(zoomLevel / 200) * 100}%, rgba(255,255,255,0.14) 100%)`,
-                       }}
-                       className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
-                     />
-                   </div>
-                   <div className="flex flex-col gap-1">
-                     <div className="flex justify-between items-center">
-                       <span className="text-[10px] font-medium text-gray-300">
-                         Brightness
-                       </span>
-                       <span className="text-[10px] text-gray-400 tabular-nums">
-                         {brightnessLevel}%
-                       </span>
-                     </div>
-                     <input
-                       type="range"
-                       min={0}
-                       max={200}
-                       value={brightnessLevel}
-                       onChange={(e) =>
-                         setBrightnessLevel(Number(e.target.value))
-                       }
-                       onPointerUp={() => {
-                         const base =
-                           getSelectedImage(images, selectedImageId)
-                             ?.brightnessPercent ?? 100;
-                         if (brightnessLevel !== base)
-                           handleBrightnessRelease(brightnessLevel);
-                       }}
-                       disabled={controlsDisabled}
-                       style={{
-                         background: `linear-gradient(90deg, rgba(45,212,191,0.95) 0%, rgba(163,230,53,0.90) ${(brightnessLevel / 200) * 100}%, rgba(255,255,255,0.14) ${(brightnessLevel / 200) * 100}%, rgba(255,255,255,0.14) 100%)`,
-                       }}
-                       className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
-                     />
-                   </div>
-                 </div>
-                 {/* Compact quick tools - full width buttons */}
-                 <div className="space-y-2">
-                   <p className="text-[10px] font-medium text-gray-300">Quick tools</p>
-                   <div className="grid grid-cols-3 gap-1">
-                     {/* Row 1 */}
-                     <Button
-                       type="button"
-                       onClick={handleAlignLeftClick}
-                       disabled={controlsDisabled}
-                       variant="ghost"
-                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-sky-400/90 to-cyan-300/90 hover:from-sky-300 hover:to-cyan-200"
-                     >
-                       <AlignLeft className="w-3 h-3" />
-                       Left
-                     </Button>
-                     <Button
-                       type="button"
-                       onClick={handleCenterClick}
-                       disabled={controlsDisabled}
-                       variant="ghost"
-                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-teal-400/90 to-lime-300/90 hover:from-teal-300 hover:to-lime-200"
-                     >
-                       <Focus className="w-3 h-3" />
-                       Center
-                     </Button>
-                     {/* Row 2 */}
-                     <Button
-                       type="button"
-                       onClick={handleAlignRightClick}
-                       disabled={controlsDisabled}
-                       variant="ghost"
-                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-rose-400/90 to-amber-300/90 hover:from-rose-300 hover:to-amber-200"
-                     >
-                       <AlignRight className="w-3 h-3" />
-                       Right
-                     </Button>
-                     <Button
-                       type="button"
-                       onClick={handleMakeOlder}
-                       disabled={controlsDisabled}
-                       variant="ghost"
-                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-amber-500/90 to-orange-400/90 hover:from-amber-400 hover:to-orange-300"
-                     >
-                       <Sparkles className="w-3 h-3" />
-                       Old
-                     </Button>
-                     {/* Row 3 */}
-                     <Button
-                       type="button"
-                       onClick={handleMakeYoung}
-                       disabled={controlsDisabled}
-                       variant="ghost"
-                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-pink-400/90 to-rose-300/90 hover:from-pink-300 hover:to-rose-200"
-                     >
-                       <Baby className="w-3 h-3" />
-                       Young
-                     </Button>
-                     <Button
-                       type="button"
-                       onClick={handleDuplicateObject}
-                       disabled={controlsDisabled}
-                       variant="ghost"
-                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-emerald-500/90 to-teal-400/90 hover:from-emerald-400 hover:to-teal-300"
-                     >
-                       <Copy className="w-3 h-3" />
-                       Duplicate
-                     </Button>
-                     {/* Row 4 */}
-                     <Button
-                       type="button"
-                       onClick={handleDeleteBackground}
-                       disabled={controlsDisabled}
-                       variant="ghost"
-                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-red-500/90 to-pink-400/90 hover:from-red-400 hover:to-pink-300"
-                     >
-                       <Eraser className="w-3 h-3" />
-                       Remove BG
-                     </Button>
-                     <Button
-                       type="button"
-                       onClick={handleAddBackground}
-                       disabled={controlsDisabled}
-                       variant="ghost"
-                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-indigo-500/90 to-purple-400/90 hover:from-indigo-400 hover:to-purple-300"
-                     >
-                       <ImagePlus className="w-3 h-3" />
-                       Add BG
-                     </Button>
-                     {/* Row 5 */}
-                     <Button
-                       type="button"
-                       onClick={handleRemoveObject}
-                       disabled={controlsDisabled}
-                       variant="ghost"
-                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-slate-500/90 to-gray-400/90 hover:from-slate-400 hover:to-gray-300"
-                     >
-                       <Trash2 className="w-3 h-3" />
-                       Clean Up
-                     </Button>
-                     <Button
-                       type="button"
-                       onClick={handleMakeSquare}
-                       disabled={controlsDisabled}
-                       variant="ghost"
-                       className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-violet-500/90 to-purple-400/90 hover:from-violet-400 hover:to-purple-300"
-                     >
-                       <Square className="w-3 h-3" />
-                       Square
-                     </Button>
-                      {/* Row 6 */}
-                      <Button
-                        type="button"
-                        onClick={handleMakeCircular}
-                        disabled={controlsDisabled}
-                        variant="ghost"
-                        className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-fuchsia-500/90 to-pink-400/90 hover:from-fuchsia-400 hover:to-pink-300"
-                      >
-                        <Circle className="w-3 h-3" />
-                        Circular
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={handlePrettify}
-                        disabled={controlsDisabled}
-                        variant="ghost"
-                        className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-400/90 to-blue-300/90 hover:from-cyan-300 hover:to-blue-200"
-                      >
-                        <Wand2 className="w-3 h-3" />
-                        Prettify
-                      </Button>
+            {/* Mobile: Compact tools section - shown only on small screens */}
+            <section className="lg:hidden app-card rounded-2xl p-3">
+              <div className="flex items-center justify-between gap-2 pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-[color:var(--app-muted)]">
+                    Oneshot
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (controlsDisabled) return;
+                      setIsBatchMode((prev) => !prev);
+                      setPendingPrompts([]);
+                    }}
+                    disabled={controlsDisabled}
+                    className={`relative h-5 w-9 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isBatchMode
+                        ? "bg-teal-400/80 border-teal-200/60"
+                        : "bg-white/10 border-white/20"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
+                        isBatchMode ? "left-4" : "left-0.5"
+                      }`}
+                    />
+                  </button>
+                  <span className="text-[10px] text-[color:var(--app-muted)]">
+                    Batch
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleBatchGenerate}
+                  disabled={
+                    controlsDisabled ||
+                    !isBatchMode ||
+                    pendingPrompts.length === 0
+                  }
+                  variant="ghost"
+                  className="h-auto rounded-full px-3 py-1 text-[10px] font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Generate
+                </Button>
+              </div>
+              <div className="mt-3 pb-3 border-b border-white/10">
+                <label className="text-[10px] font-medium text-gray-300 block mb-2">
+                  Model
+                </label>
+                <Select value={selectedModel} onValueChange={setSelectedModel}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gemini-2.5-flash-image">
+                      Gemini 2.5 Flash
+                    </SelectItem>
+                    <SelectItem value="gemini-3-pro-image-preview">
+                      Gemini 3 Pro Preview
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="mt-3 space-y-3">
+                {/* Compact sliders */}
+                <div className="space-y-2">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-medium text-gray-300">
+                        Zoom
+                      </span>
+                      <span className="text-[10px] text-gray-400 tabular-nums">
+                        {zoomLevel}%
+                      </span>
                     </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={200}
+                      value={zoomLevel}
+                      onChange={(e) => setZoomLevel(Number(e.target.value))}
+                      onPointerUp={() => {
+                        const base =
+                          getSelectedImage(images, selectedImageId)
+                            ?.zoomPercent ?? 100;
+                        if (zoomLevel !== base) handleZoomRelease(zoomLevel);
+                      }}
+                      disabled={controlsDisabled}
+                      style={{
+                        background: `linear-gradient(90deg, rgba(45,212,191,0.95) 0%, rgba(163,230,53,0.90) ${(zoomLevel / 200) * 100}%, rgba(255,255,255,0.14) ${(zoomLevel / 200) * 100}%, rgba(255,255,255,0.14) 100%)`,
+                      }}
+                      className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
+                    />
                   </div>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-medium text-gray-300">
+                        Brightness
+                      </span>
+                      <span className="text-[10px] text-gray-400 tabular-nums">
+                        {brightnessLevel}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={200}
+                      value={brightnessLevel}
+                      onChange={(e) =>
+                        setBrightnessLevel(Number(e.target.value))
+                      }
+                      onPointerUp={() => {
+                        const base =
+                          getSelectedImage(images, selectedImageId)
+                            ?.brightnessPercent ?? 100;
+                        if (brightnessLevel !== base)
+                          handleBrightnessRelease(brightnessLevel);
+                      }}
+                      disabled={controlsDisabled}
+                      style={{
+                        background: `linear-gradient(90deg, rgba(45,212,191,0.95) 0%, rgba(163,230,53,0.90) ${(brightnessLevel / 200) * 100}%, rgba(255,255,255,0.14) ${(brightnessLevel / 200) * 100}%, rgba(255,255,255,0.14) 100%)`,
+                      }}
+                      className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
+                    />
+                  </div>
+                </div>
+                {/* Compact quick tools - full width buttons */}
+                <div className="space-y-2">
+                  <p className="text-[10px] font-medium text-gray-300">
+                    Quick tools
+                  </p>
+                  <div className="grid grid-cols-3 gap-1">
+                    {/* Row 1 */}
+                    <Button
+                      type="button"
+                      onClick={handleAlignLeftClick}
+                      disabled={controlsDisabled}
+                      variant="ghost"
+                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-sky-400/90 to-cyan-300/90 hover:from-sky-300 hover:to-cyan-200"
+                    >
+                      <AlignLeft className="w-3 h-3" />
+                      Left
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleCenterClick}
+                      disabled={controlsDisabled}
+                      variant="ghost"
+                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-teal-400/90 to-lime-300/90 hover:from-teal-300 hover:to-lime-200"
+                    >
+                      <Focus className="w-3 h-3" />
+                      Center
+                    </Button>
+                    {/* Row 2 */}
+                    <Button
+                      type="button"
+                      onClick={handleAlignRightClick}
+                      disabled={controlsDisabled}
+                      variant="ghost"
+                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-rose-400/90 to-amber-300/90 hover:from-rose-300 hover:to-amber-200"
+                    >
+                      <AlignRight className="w-3 h-3" />
+                      Right
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleMakeOlder}
+                      disabled={controlsDisabled}
+                      variant="ghost"
+                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-amber-500/90 to-orange-400/90 hover:from-amber-400 hover:to-orange-300"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      Old
+                    </Button>
+                    {/* Row 3 */}
+                    <Button
+                      type="button"
+                      onClick={handleMakeYoung}
+                      disabled={controlsDisabled}
+                      variant="ghost"
+                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-pink-400/90 to-rose-300/90 hover:from-pink-300 hover:to-rose-200"
+                    >
+                      <Baby className="w-3 h-3" />
+                      Young
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleDuplicateObject}
+                      disabled={controlsDisabled}
+                      variant="ghost"
+                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-emerald-500/90 to-teal-400/90 hover:from-emerald-400 hover:to-teal-300"
+                    >
+                      <Copy className="w-3 h-3" />
+                      Duplicate
+                    </Button>
+                    {/* Row 4 */}
+                    <Button
+                      type="button"
+                      onClick={handleDeleteBackground}
+                      disabled={controlsDisabled}
+                      variant="ghost"
+                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-red-500/90 to-pink-400/90 hover:from-red-400 hover:to-pink-300"
+                    >
+                      <Eraser className="w-3 h-3" />
+                      Remove BG
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleAddBackground}
+                      disabled={controlsDisabled}
+                      variant="ghost"
+                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-indigo-500/90 to-purple-400/90 hover:from-indigo-400 hover:to-purple-300"
+                    >
+                      <ImagePlus className="w-3 h-3" />
+                      Add BG
+                    </Button>
+                    {/* Row 5 */}
+                    <Button
+                      type="button"
+                      onClick={handleRemoveObject}
+                      disabled={controlsDisabled}
+                      variant="ghost"
+                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-slate-500/90 to-gray-400/90 hover:from-slate-400 hover:to-gray-300"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Clean Up
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleMakeSquare}
+                      disabled={controlsDisabled}
+                      variant="ghost"
+                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-violet-500/90 to-purple-400/90 hover:from-violet-400 hover:to-purple-300"
+                    >
+                      <Square className="w-3 h-3" />
+                      Square
+                    </Button>
+                    {/* Row 6 */}
+                    <Button
+                      type="button"
+                      onClick={handleMakeCircular}
+                      disabled={controlsDisabled}
+                      variant="ghost"
+                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-fuchsia-500/90 to-pink-400/90 hover:from-fuchsia-400 hover:to-pink-300"
+                    >
+                      <Circle className="w-3 h-3" />
+                      Circular
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handlePrettify}
+                      disabled={controlsDisabled}
+                      variant="ghost"
+                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-400/90 to-blue-300/90 hover:from-cyan-300 hover:to-blue-200"
+                    >
+                      <Wand2 className="w-3 h-3" />
+                      Prettify
+                    </Button>
+                  </div>
+                </div>
               </div>
               <div className="mt-3">
                 <textarea
@@ -1431,8 +1465,8 @@ function ImageEditorApp() {
               </div>
             </section>
 
-            {/* History timeline */}
-            <section className="app-card rounded-2xl lg:rounded-3xl p-3 lg:p-5">
+            {/* History timeline - hidden on mobile, shown on desktop */}
+            <section className="hidden lg:block app-card rounded-3xl p-5">
               <div className="flex items-center justify-between gap-2 lg:gap-3">
                 <h3 className="text-xs lg:text-sm font-semibold">History</h3>
                 <span className="app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs text-[color:var(--app-muted)]">
@@ -1464,11 +1498,11 @@ function ImageEditorApp() {
                             !images.some(
                               (img) => img.parentImageId === visibleImage._id,
                             );
-                           const canDelete =
-                             isOwner &&
-                             showNode &&
-                             ((isOriginal && images.length >= 1) ||
-                               (isLeaf && !isOriginal));
+                          const canDelete =
+                            isOwner &&
+                            showNode &&
+                            ((isOriginal && images.length >= 1) ||
+                              (isLeaf && !isOriginal));
                           const deleteTitle = isOriginal
                             ? "Delete original (reset project)"
                             : "Delete image";
@@ -1759,21 +1793,21 @@ function ImageEditorApp() {
                   toneClassName="bg-gradient-to-r from-violet-500/90 to-purple-400/90 hover:from-violet-400 hover:to-purple-300"
                 />
                 <PositionButton
-                   onClick={handleMakeCircular}
-                   disabled={controlsDisabled}
-                   label="Circular"
-                   icon={Circle}
-                   toneClassName="bg-gradient-to-r from-fuchsia-500/90 to-pink-400/90 hover:from-fuchsia-400 hover:to-pink-300"
-                 />
-                 <PositionButton
-                   onClick={handlePrettify}
-                   disabled={controlsDisabled}
-                   label="Prettify"
-                   icon={Wand2}
-                   toneClassName="bg-gradient-to-r from-cyan-400/90 to-blue-300/90 hover:from-cyan-300 hover:to-blue-200"
-                 />
-               </div>
-             </section>
+                  onClick={handleMakeCircular}
+                  disabled={controlsDisabled}
+                  label="Circular"
+                  icon={Circle}
+                  toneClassName="bg-gradient-to-r from-fuchsia-500/90 to-pink-400/90 hover:from-fuchsia-400 hover:to-pink-300"
+                />
+                <PositionButton
+                  onClick={handlePrettify}
+                  disabled={controlsDisabled}
+                  label="Prettify"
+                  icon={Wand2}
+                  toneClassName="bg-gradient-to-r from-cyan-400/90 to-blue-300/90 hover:from-cyan-300 hover:to-blue-200"
+                />
+              </div>
+            </section>
 
             <section className="app-card rounded-3xl p-5">
               <div className="flex items-center justify-between gap-3">
@@ -1839,6 +1873,159 @@ function ImageEditorApp() {
             </section>
           </aside>
         </main>
+
+        {/* Mobile: History Modal using shadcn Dialog */}
+        <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
+          <DialogContent className="lg:hidden max-w-full w-full rounded-t-3xl border-t border-white/10 max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>History ({images.length} steps)</DialogTitle>
+            </DialogHeader>
+
+            <div className="overflow-x-auto pb-2 -mx-6 px-6">
+              <div className="flex flex-col gap-3 min-w-max">
+                {historyRows.map((row, rowIndex) => (
+                  <div
+                    key={`history-row-${rowIndex}`}
+                    className="flex items-center gap-2"
+                  >
+                    {Array.from({ length: historyColumns }).map((_, depth) => {
+                      const node = row.path[depth];
+                      const image = node?.image;
+                      const visibleImage =
+                        depth >= row.visibleFromDepth ? image : undefined;
+                      const showNode = !!visibleImage;
+                      const isSelected =
+                        visibleImage?._id === selectedHistoryId;
+                      const isOriginal = image?.stepNumber === 0;
+                      const isLeaf =
+                        showNode &&
+                        visibleImage &&
+                        !images.some(
+                          (img) => img.parentImageId === visibleImage._id,
+                        );
+                      const canDelete =
+                        isOwner &&
+                        showNode &&
+                        ((isOriginal && images.length >= 1) ||
+                          (isLeaf && !isOriginal));
+                      const deleteTitle = isOriginal
+                        ? "Delete original (reset project)"
+                        : "Delete image";
+
+                      const currentEditType =
+                        visibleImage?.editType ?? "unknown";
+                      const currentMeta =
+                        EDIT_TYPE_ICON_MAP[currentEditType] ??
+                        EDIT_TYPE_ICON_MAP.unknown;
+                      const CurrentEditIcon = currentMeta.icon;
+                      const showEditIcon =
+                        showNode && visibleImage?.stepNumber !== 0;
+
+                      return (
+                        <div
+                          key={`history-cell-${rowIndex}-${depth}`}
+                          className="contents"
+                        >
+                          <div className="flex flex-col items-start">
+                            <div className="relative">
+                              {showEditIcon && (
+                                <div
+                                  title={currentMeta.label}
+                                  style={{
+                                    top: "calc((100% - 1.25rem) / 2)",
+                                  }}
+                                  className="absolute -left-2 z-10 h-5 w-5 rounded-full border border-white/15 bg-black/60 backdrop-blur grid place-items-center text-white/90"
+                                >
+                                  <CurrentEditIcon className="h-3 w-3" />
+                                </div>
+                              )}
+                              {visibleImage ? (
+                                <TooltipProvider delayDuration={0}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        type="button"
+                                        disabled={controlsDisabled}
+                                        onClick={() => {
+                                          if (controlsDisabled) return;
+                                          setSelectedImageId(visibleImage._id);
+                                          setIsHistoryModalOpen(false);
+                                        }}
+                                        className={`group block w-16 h-16 rounded-xl overflow-hidden border transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                                          isSelected
+                                            ? "border-teal-300/70 shadow-[0_0_0_2px_rgba(45,212,191,0.18)]"
+                                            : "border-white/10"
+                                        }`}
+                                      >
+                                        <img
+                                          src={getImageUrl(
+                                            visibleImage.url ?? "",
+                                            visibleImage.createdAt,
+                                          )}
+                                          alt={`Step ${visibleImage.stepNumber}`}
+                                          className="w-full h-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                                        />
+                                        <div className="absolute left-1 top-1 app-badge rounded-full px-1.5 py-0.5 text-[8px] text-[color:var(--app-muted)]">
+                                          {visibleImage.stepNumber}
+                                        </div>
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="top"
+                                      className="max-w-[280px]"
+                                    >
+                                      <p className="text-left leading-relaxed break-words whitespace-pre-wrap">
+                                        {getTooltipText(visibleImage)}
+                                      </p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : depth === row.branchDepth - 1 &&
+                                row.branchDepth > 0 ? (
+                                <div className="w-16 h-16 flex items-center justify-center">
+                                  <CornerDownRight className="h-4 w-4 text-[color:var(--app-faint)]" />
+                                </div>
+                              ) : depth === row.visibleFromDepth - 1 &&
+                                row.visibleFromDepth > 0 &&
+                                depth < row.branchDepth - 1 ? (
+                                <div className="w-16 h-16 flex items-center justify-center">
+                                  <MoveDown className="h-4 w-4 text-[color:var(--app-faint)]" />
+                                </div>
+                              ) : (
+                                <div className="w-16 h-16 opacity-0 pointer-events-none" />
+                              )}
+
+                              {showNode && canDelete && visibleImage && (
+                                <button
+                                  type="button"
+                                  disabled={controlsDisabled}
+                                  title={deleteTitle}
+                                  aria-label={deleteTitle}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (isOriginal) {
+                                      handleDeleteChain();
+                                    } else {
+                                      handleDeleteLeafImage(visibleImage._id);
+                                    }
+                                  }}
+                                  className="absolute -right-1 -top-1 h-5 w-5 rounded-full border border-white/15 bg-black/60 backdrop-blur grid place-items-center text-xs font-semibold text-white transition hover:bg-black/80 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                  x
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
