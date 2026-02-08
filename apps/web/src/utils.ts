@@ -157,3 +157,97 @@ export function buildBrightnessPrompt(value: number, base: number): string {
   const amount = Math.abs(value - base);
   return `Make the image about ${amount}% ${direction}. Target brightness ${value}% (100% = original). Adjust overall brightness/exposure while keeping the same subject and composition.`;
 }
+
+/**
+ * Navigate the history tree based on direction.
+ * Directions: 'up', 'down', 'left', 'right'
+ */
+export function navigateHistoryTree(
+  currentImageId: Id<"images"> | null,
+  images: ImageWithUrl[],
+  direction: "up" | "down" | "left" | "right"
+): Id<"images"> | null {
+  if (!currentImageId || images.length === 0) {
+    const latest = getLatestImage(images);
+    return latest?._id ?? null;
+  }
+
+  const currentImage = images.find((img) => img._id === currentImageId);
+  if (!currentImage) return currentImageId;
+
+  const childrenMap = new Map<Id<"images">, ImageWithUrl[]>();
+
+  // Build children map
+  for (const img of images) {
+    if (img.parentImageId) {
+      if (!childrenMap.has(img.parentImageId)) {
+        childrenMap.set(img.parentImageId, []);
+      }
+      childrenMap.get(img.parentImageId)!.push(img);
+    }
+  }
+
+  // Sort children by step number and creation time
+  for (const children of childrenMap.values()) {
+    children.sort((a, b) => {
+      if (a.stepNumber !== b.stepNumber) {
+        return a.stepNumber - b.stepNumber;
+      }
+      return a.createdAt - b.createdAt;
+    });
+  }
+
+  switch (direction) {
+    case "down": {
+      // Move to next sibling (or first child if no siblings exist)
+      const siblings = currentImage.parentImageId
+        ? childrenMap.get(currentImage.parentImageId) || []
+        : [];
+      const currentIndex = siblings.findIndex(
+        (img) => img._id === currentImageId
+      );
+
+      if (currentIndex >= 0 && currentIndex < siblings.length - 1) {
+        // Go to next sibling
+        return siblings[currentIndex + 1]._id;
+      } else {
+        // Try to go to first child
+        const children = childrenMap.get(currentImageId) || [];
+        return children.length > 0 ? children[0]._id : currentImageId;
+      }
+    }
+
+    case "up": {
+      // Move to previous sibling (or parent if no previous siblings)
+      const siblings = currentImage.parentImageId
+        ? childrenMap.get(currentImage.parentImageId) || []
+        : [];
+      const currentIndex = siblings.findIndex(
+        (img) => img._id === currentImageId
+      );
+
+      if (currentIndex > 0) {
+        // Go to previous sibling
+        return siblings[currentIndex - 1]._id;
+      } else if (currentImage.parentImageId) {
+        // Go to parent
+        return currentImage.parentImageId;
+      }
+      return currentImageId;
+    }
+
+    case "right": {
+      // Move to first child
+      const children = childrenMap.get(currentImageId) || [];
+      return children.length > 0 ? children[0]._id : currentImageId;
+    }
+
+    case "left": {
+      // Move to parent
+      return currentImage.parentImageId ?? currentImageId;
+    }
+
+    default:
+      return currentImageId;
+  }
+}
