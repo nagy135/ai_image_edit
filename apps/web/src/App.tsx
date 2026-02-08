@@ -414,7 +414,7 @@ function App() {
                         </div>
                       </div>
                       {activePrompt && (
-                        <p className="mt-3 text-[10px] lg:text-xs text-[color:var(--app-muted)] break-words">
+                        <p className="mt-3 text-[10px] lg:text-xs text-[color:var(--app-muted)] break-words whitespace-pre-wrap">
                           {activePrompt}
                         </p>
                       )}
@@ -438,7 +438,7 @@ function App() {
                     </span>
                   </div>
                 </div>
-                <div className="hidden lg:block text-xs text-[color:var(--app-faint)] break-words max-w-[64ch]">
+                <div className="hidden lg:block text-xs text-[color:var(--app-faint)] break-words max-w-[64ch] whitespace-pre-wrap">
                   {currentImage.prompt
                     ? `"${currentImage.prompt}"`
                     : "No prompt for this step"}
@@ -782,7 +782,7 @@ function App() {
                                           side="top"
                                           className="max-w-[280px]"
                                         >
-                                          <p className="text-left leading-relaxed break-words">
+                                          <p className="text-left leading-relaxed break-words whitespace-pre-wrap">
                                             {getTooltipText(visibleImage)}
                                           </p>
                                         </TooltipContent>

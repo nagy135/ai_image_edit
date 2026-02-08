@@ -91,16 +91,16 @@ export function useImageGeneration(
     setPendingPrompts((prev) => [...prev, prompt.trim()]);
   }, []);
 
-  const handleBatchGenerate = useCallback(async () => {
-    if (!pendingPrompts.length) return;
-    const combinedPrompt = pendingPrompts.join(" ");
-    const sourceImage = getSelectedImage();
-    const zoomPercent = sourceImage?.zoomPercent ?? 100;
-    const brightnessPercent = sourceImage?.brightnessPercent ?? 100;
+   const handleBatchGenerate = useCallback(async () => {
+     if (!pendingPrompts.length) return;
+     const combinedPrompt = pendingPrompts.join("\n\n");
+     const sourceImage = getSelectedImage();
+     const zoomPercent = sourceImage?.zoomPercent ?? 100;
+     const brightnessPercent = sourceImage?.brightnessPercent ?? 100;
 
-    await generateImage(combinedPrompt, "manual", zoomPercent, brightnessPercent);
-    setPendingPrompts([]);
-  }, [pendingPrompts, getSelectedImage, generateImage]);
+     await generateImage(combinedPrompt, "manual", zoomPercent, brightnessPercent);
+     setPendingPrompts([]);
+   }, [pendingPrompts, getSelectedImage, generateImage]);
 
    return {
      isGenerating,
