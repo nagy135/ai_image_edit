@@ -4,6 +4,7 @@ import {
   AuthLoading,
   Unauthenticated,
   useMutation,
+  useConvexAuth,
 } from "convex/react";
 import { SignInButton, UserButton, useUser } from "@clerk/clerk-react";
 import { Button } from "./components/ui/button";
@@ -153,14 +154,15 @@ function SignedOutView() {
 }
 
 function SignedInApp() {
-  const { user, isLoaded } = useUser();
+  const { user, isLoaded: clerkLoaded } = useUser();
+  const { isAuthenticated, isLoading: convexLoading } = useConvexAuth();
   const upsertUser = useMutation(api.users.upsertCurrentUser);
   const [isSynced, setIsSynced] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const userId = user?.id;
 
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    if (!clerkLoaded || !user || convexLoading || !isAuthenticated) return;
     let cancelled = false;
     setIsSynced(false);
     setSyncError(null);
@@ -182,7 +184,7 @@ function SignedInApp() {
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, userId, upsertUser]);
+  }, [clerkLoaded, userId, convexLoading, isAuthenticated, upsertUser]);
 
   if (syncError) {
     return (
@@ -206,7 +208,7 @@ function SignedInApp() {
     );
   }
 
-  if (!isLoaded || !isSynced) {
+  if (!clerkLoaded || !isSynced || convexLoading) {
     return (
       <AuthLoadingView
         title="Setting up your workspace"
