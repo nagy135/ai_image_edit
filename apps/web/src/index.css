@@ -13,6 +13,13 @@
     --app-accent: #2dd4bf;
     --app-accent-2: #a3e635;
     --app-warn: #fb7185;
+    --app-popover: rgba(9, 14, 22, 0.95);
+    --app-primary-foreground: #041312;
+    --app-secondary: rgba(255, 255, 255, 0.1);
+    --app-secondary-foreground: rgba(240, 247, 255, 0.92);
+    --app-muted-bg: rgba(255, 255, 255, 0.05);
+    --app-accent-foreground: #041312;
+    --app-destructive-foreground: #1a0509;
     --font-body: "Instrument Sans", ui-sans-serif, system-ui, -apple-system,
       Segoe UI, sans-serif;
     --font-display: "Sora", ui-sans-serif, system-ui, -apple-system, Segoe UI,

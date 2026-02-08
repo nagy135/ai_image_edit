@@ -3,6 +3,13 @@ import { api } from "@repo/convex-backend/convex/_generated/api";
 import { useState, useRef, useEffect } from "react";
 import type { Doc, Id } from "@repo/convex-backend/convex/_generated/dataModel";
 import { EditSlider } from "./components/EditSlider";
+import { Button } from "./components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./components/ui/tooltip";
 import {
   AlignLeft,
   AlignRight,
@@ -42,11 +49,12 @@ function PositionButton({
 }: PositionButtonProps) {
   const isCompact = size === "compact";
   return (
-    <button
+    <Button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-center justify-center w-full transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed text-black font-semibold ${toneClassName} ${
+      variant="ghost"
+      className={`flex items-center justify-center w-full h-auto transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed text-black font-semibold ${toneClassName} ${
         isCompact
           ? "gap-1.5 rounded-xl px-2 py-2 text-xs"
           : "gap-2 rounded-2xl px-4 py-3 text-sm shadow-[0_18px_40px_rgba(45,212,191,0.16)]"
@@ -54,7 +62,7 @@ function PositionButton({
     >
       <Icon className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
       {isGenerating ? (isCompact ? "..." : "Generating...") : label}
-    </button>
+    </Button>
   );
 }
 
@@ -66,11 +74,12 @@ function MakeOldButton({
 }: QuickToolButtonProps) {
   const isCompact = size === "compact";
   return (
-    <button
+    <Button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-center justify-center transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-amber-500/90 to-orange-400/90 text-black hover:from-amber-400 hover:to-orange-300 font-semibold ${
+      variant="ghost"
+      className={`flex items-center justify-center h-auto transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-amber-500/90 to-orange-400/90 text-black hover:from-amber-400 hover:to-orange-300 font-semibold ${
         isCompact
           ? "gap-1.5 rounded-xl px-2 py-2 text-xs"
           : "gap-2 rounded-2xl px-4 py-3 text-sm shadow-[0_18px_40px_rgba(217,119,6,0.16)]"
@@ -78,7 +87,7 @@ function MakeOldButton({
     >
       <Sparkles className={isCompact ? "w-3.5 h-3.5" : "w-4 h-4"} />
       {isGenerating ? (isCompact ? "..." : "Generating...") : "Make old"}
-    </button>
+    </Button>
   );
 }
 
@@ -102,6 +111,13 @@ type HistoryRow = {
 type HistoryLayout = {
   rows: HistoryRow[];
   maxDepth: number;
+};
+
+type TimelineTooltip = {
+  prompt: string;
+  x: number;
+  y: number;
+  imageId: Id<"images">;
 };
 
 const buildHistoryLayout = (images: ImageWithUrl[]): HistoryLayout => {
@@ -210,10 +226,13 @@ function App() {
     null,
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const tooltipCloseTimeoutRef = useRef<number | null>(null);
   const [manualPrompt, setManualPrompt] = useState("");
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [pendingPrompts, setPendingPrompts] = useState<string[]>([]);
   const [activePrompt, setActivePrompt] = useState<string>("");
+  const [timelineTooltip, setTimelineTooltip] =
+    useState<TimelineTooltip | null>(null);
 
   // Slider states
   const [zoomLevel, setZoomLevel] = useState(100);
@@ -248,6 +267,14 @@ function App() {
     setZoomLevel(img.zoomPercent ?? 100);
     setBrightnessLevel(img.brightnessPercent ?? 100);
   }, [images, selectedImageId]);
+
+  useEffect(() => {
+    return () => {
+      if (tooltipCloseTimeoutRef.current) {
+        window.clearTimeout(tooltipCloseTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleFileSelect = async (file: File) => {
     setIsUploading(true);
@@ -296,6 +323,36 @@ function App() {
     if (file) {
       handleFileSelect(file);
     }
+  };
+
+  const updateTimelineTooltip = (
+    event: React.MouseEvent,
+    image: ImageWithUrl,
+  ) => {
+    if (tooltipCloseTimeoutRef.current) {
+      window.clearTimeout(tooltipCloseTimeoutRef.current);
+      tooltipCloseTimeoutRef.current = null;
+    }
+    const prompt =
+      image.prompt?.trim() ||
+      (image.stepNumber === 0 ? "Original upload" : "No prompt for this step");
+    const button = event.currentTarget as HTMLElement;
+    const rect = button.getBoundingClientRect();
+    setTimelineTooltip({
+      prompt,
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+      imageId: image._id,
+    });
+  };
+
+  const hideTimelineTooltip = () => {
+    if (tooltipCloseTimeoutRef.current) {
+      window.clearTimeout(tooltipCloseTimeoutRef.current);
+    }
+    tooltipCloseTimeoutRef.current = window.setTimeout(() => {
+      setTimelineTooltip(null);
+    }, 90);
   };
 
   // Helper to add cache-busting to image URLs
@@ -694,6 +751,9 @@ function App() {
       ];
   const historyColumns = Math.max(1, historyLayout.maxDepth);
   const selectedHistoryId = selectedImageId ?? currentImage._id;
+  const isTimelineTooltipOpen = Boolean(timelineTooltip);
+  const timelineTooltipX = timelineTooltip?.x ?? 0;
+  const timelineTooltipY = timelineTooltip?.y ?? 0;
 
   return (
     <div
@@ -720,14 +780,15 @@ function App() {
                 Generating...
               </span>
             )}
-            <button
+            <Button
               type="button"
               onClick={handleNewImage}
               disabled={controlsDisabled}
-              className="rounded-full px-3 py-1.5 lg:px-4 lg:py-2 text-xs lg:text-sm font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              variant="secondary"
+              className="h-auto rounded-full px-3 py-1.5 lg:px-4 lg:py-2 text-xs lg:text-sm font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               New
-            </button>
+            </Button>
           </div>
         </header>
 
@@ -822,7 +883,7 @@ function App() {
                     Batch
                   </span>
                 </div>
-                <button
+                <Button
                   type="button"
                   onClick={handleBatchGenerate}
                   disabled={
@@ -830,10 +891,11 @@ function App() {
                     !isBatchMode ||
                     pendingPrompts.length === 0
                   }
-                  className="rounded-full px-3 py-1 text-[10px] font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  variant="ghost"
+                  className="h-auto rounded-full px-3 py-1 text-[10px] font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Generate
-                </button>
+                </Button>
               </div>
               <div className="grid grid-cols-2 gap-3 pt-3">
                 {/* Compact sliders */}
@@ -949,16 +1011,17 @@ function App() {
                       ? `Queued ${pendingPrompts.length}`
                       : "Runs immediately"}
                   </span>
-                  <button
+                  <Button
                     type="button"
                     onClick={handleManualSubmit}
                     disabled={
                       controlsDisabled || manualPrompt.trim().length === 0
                     }
-                    className="rounded-full px-3 py-1 text-[10px] font-semibold bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    variant="ghost"
+                    className="h-auto rounded-full px-3 py-1 text-[10px] font-semibold bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isBatchMode ? "Add prompt" : "Generate"}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </section>
@@ -972,51 +1035,70 @@ function App() {
                 </span>
               </div>
 
-              <div className="mt-2 lg:mt-4 overflow-x-auto pb-1 lg:pb-2">
-                <div className="flex flex-col gap-3 min-w-max">
-                  {historyRows.map((row, rowIndex) => (
-                    <div
-                      key={`history-row-${rowIndex}`}
-                      className="flex items-center gap-2 lg:gap-3"
-                    >
-                      {Array.from({ length: historyColumns }).map(
-                        (_, depth) => {
-                          const node = row.path[depth];
-                          const nextNode = row.path[depth + 1];
-                          const image = node?.image;
-                          const visibleImage =
-                            depth >= row.visibleFromDepth ? image : undefined;
-                          const showNode = !!visibleImage;
-                          const isSelected =
-                            visibleImage?._id === selectedHistoryId;
-                          const isOriginal = image?.stepNumber === 0;
-                          const isLast = image?._id === latestImage._id;
-                          const canDelete =
-                            showNode &&
-                            ((isOriginal && images.length >= 1) ||
-                              (isLast && !isOriginal));
-                          const deleteTitle = isOriginal
-                            ? "Delete original (reset project)"
-                            : "Delete last step";
+              {isTimelineTooltipOpen && timelineTooltip && (
+                <div
+                  className="pointer-events-none fixed z-50 max-w-[280px] rounded-xl border border-white/10 bg-popover px-3 py-2 text-xs text-popover-foreground shadow-xl backdrop-blur-md transition-opacity duration-150"
+                  style={{
+                    left: `${timelineTooltipX}px`,
+                    bottom: `calc(100vh - ${timelineTooltipY - 8}px)`,
+                    transform: "translateX(-50%)",
+                    opacity: 1,
+                  }}
+                >
+                  <span
+                    key={timelineTooltip.imageId}
+                    className="block text-left leading-relaxed break-words"
+                  >
+                    {timelineTooltip.prompt}
+                  </span>
+                </div>
+              )}
 
-                          const editType =
-                            nextNode?.image.editType ?? "unknown";
-                          const meta =
-                            editTypeIconMap[editType] ??
-                            editTypeIconMap.unknown;
-                          const EditIcon = meta.icon;
-                          const isBranchJoin =
-                            row.branchDepth > 0 &&
-                            depth + 1 === row.branchDepth;
-                          const shouldShowArrow =
-                            !!image &&
-                            !!nextNode &&
-                            depth + 1 >= row.visibleFromDepth;
-                          const ArrowIcon = isBranchJoin
-                            ? ArrowDownRight
-                            : ArrowRight;
+                <div className="mt-2 lg:mt-4 overflow-x-auto pb-1 lg:pb-2">
+                  <div className="flex flex-col gap-3 min-w-max">
+                    {historyRows.map((row, rowIndex) => (
+                      <div
+                        key={`history-row-${rowIndex}`}
+                        className="flex items-center gap-2 lg:gap-3"
+                      >
+                        {Array.from({ length: historyColumns }).map(
+                          (_, depth) => {
+                            const node = row.path[depth];
+                            const nextNode = row.path[depth + 1];
+                            const image = node?.image;
+                            const visibleImage =
+                              depth >= row.visibleFromDepth ? image : undefined;
+                            const showNode = !!visibleImage;
+                            const isSelected =
+                              visibleImage?._id === selectedHistoryId;
+                            const isOriginal = image?.stepNumber === 0;
+                            const isLast = image?._id === latestImage._id;
+                            const canDelete =
+                              showNode &&
+                              ((isOriginal && images.length >= 1) ||
+                                (isLast && !isOriginal));
+                            const deleteTitle = isOriginal
+                              ? "Delete original (reset project)"
+                              : "Delete last step";
 
-                          return (
+                            const editType =
+                              nextNode?.image.editType ?? "unknown";
+                            const meta =
+                              editTypeIconMap[editType] ??
+                              editTypeIconMap.unknown;
+                            const EditIcon = meta.icon;
+                            const isBranchJoin =
+                              row.branchDepth > 0 &&
+                              depth + 1 === row.branchDepth;
+                            const shouldShowArrow =
+                              !!image &&
+                              !!nextNode &&
+                              depth + 1 >= row.visibleFromDepth;
+                            const ArrowIcon = isBranchJoin
+                              ? ArrowDownRight
+                              : ArrowRight;
+
+                            return (
                             <div
                               key={`history-cell-${rowIndex}-${depth}`}
                               className="contents"
@@ -1031,6 +1113,13 @@ function App() {
                                         if (controlsDisabled) return;
                                         setSelectedImageId(visibleImage._id);
                                       }}
+                                      onMouseEnter={(event) =>
+                                        updateTimelineTooltip(event, visibleImage)
+                                      }
+                                      onMouseMove={(event) =>
+                                        updateTimelineTooltip(event, visibleImage)
+                                      }
+                                      onMouseLeave={hideTimelineTooltip}
                                       className={`group block w-14 h-14 sm:w-16 sm:h-16 lg:w-24 lg:h-24 rounded-xl lg:rounded-2xl overflow-hidden border transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
                                         isSelected
                                           ? "border-teal-300/70 shadow-[0_0_0_2px_rgba(45,212,191,0.18)] lg:shadow-[0_0_0_3px_rgba(45,212,191,0.18)]"
@@ -1123,7 +1212,7 @@ function App() {
             <section className="app-card rounded-3xl p-5">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold">Generation mode</h2>
-                <button
+                <Button
                   type="button"
                   onClick={handleBatchGenerate}
                   disabled={
@@ -1131,10 +1220,11 @@ function App() {
                     !isBatchMode ||
                     pendingPrompts.length === 0
                   }
-                  className="rounded-full px-3 py-1 text-xs font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  variant="ghost"
+                  className="h-auto rounded-full px-3 py-1 text-xs font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Generate
-                </button>
+                </Button>
               </div>
               <div className="mt-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1186,16 +1276,17 @@ function App() {
                       ? "Add multiple prompts, then generate once."
                       : "Submit to generate immediately."}
                   </span>
-                  <button
+                  <Button
                     type="button"
                     onClick={handleManualSubmit}
                     disabled={
                       controlsDisabled || manualPrompt.trim().length === 0
                     }
-                    className="rounded-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    variant="ghost"
+                    className="h-auto rounded-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isBatchMode ? "Add prompt" : "Generate"}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </section>
