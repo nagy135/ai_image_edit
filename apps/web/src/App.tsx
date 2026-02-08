@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  useMutation,
-} from "convex/react";
+import { useMutation } from "convex/react";
 import { SignInButton, UserButton, useUser } from "@clerk/clerk-react";
 import { Button } from "./components/ui/button";
 import {
@@ -101,8 +99,8 @@ function SignedOutView() {
           </SignInButton>
         </header>
 
-        <main className="mt-10 grid gap-6 lg:grid-cols-[1.2fr_0.8fr] items-start">
-          <section className="app-card rounded-3xl p-6 lg:p-8">
+        <main className="mt-10 gap-6 ">
+          <section className="app-card rounded-3xl p-6 lg:p-8 max-w-xl mx-auto flex flex-col items-center">
             <h2 className="text-xl font-semibold">Ready to start?</h2>
             <p className="mt-2 text-sm text-[color:var(--app-muted)]">
               Sign in to unlock your personal chain library.
@@ -140,7 +138,7 @@ function SignedInApp() {
     setIsSynced(false);
     setSyncError(null);
 
-     const name = user.fullName ?? user.username ?? undefined;
+    const name = user.fullName ?? user.username ?? undefined;
     const email = user.primaryEmailAddress?.emailAddress ?? undefined;
     const imageUrl = user.imageUrl ?? undefined;
 
@@ -217,7 +215,7 @@ function App() {
 function ImageEditorApp() {
   const { user } = useUser();
   const clerkUserId = user?.id || null;
-  
+
   // Slider state
   const [selectedImageId, setSelectedImageId] = useState<Id<"images"> | null>(
     null,
@@ -243,27 +241,27 @@ function ImageEditorApp() {
     uploadDisabled,
   } = useImageChain(false, selectedImageId, setSelectedImageId, clerkUserId);
 
-   // Image generation management
-   const {
-     isGenerating,
-     activePrompt,
-     isBatchMode,
-     pendingPrompts,
-     manualPrompt,
-     generateImage,
-     enqueuePrompt,
-     handleBatchGenerate,
-     setIsBatchMode,
-     setManualPrompt,
-     setPendingPrompts,
-    } = useImageGeneration(
-     currentChainId,
-     images,
-     () => getSelectedImage(images, selectedImageId),
-     setSelectedImageId,
-     selectedModel,
-     clerkUserId,
-    );
+  // Image generation management
+  const {
+    isGenerating,
+    activePrompt,
+    isBatchMode,
+    pendingPrompts,
+    manualPrompt,
+    generateImage,
+    enqueuePrompt,
+    handleBatchGenerate,
+    setIsBatchMode,
+    setManualPrompt,
+    setPendingPrompts,
+  } = useImageGeneration(
+    currentChainId,
+    images,
+    () => getSelectedImage(images, selectedImageId),
+    setSelectedImageId,
+    selectedModel,
+    clerkUserId,
+  );
 
   const controlsDisabled = isGenerating;
 
