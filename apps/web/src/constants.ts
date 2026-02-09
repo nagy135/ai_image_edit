@@ -43,11 +43,12 @@ export const EDIT_TYPE_ICON_MAP: Record<string, EditTypeMeta> = {
   remove_object: { icon: Trash2, label: "Remove object" },
   make_square: { icon: Square, label: "Make square" },
   make_circular: { icon: Circle, label: "Make circular" },
-  duplicate_object: { icon: Copy, label: "Duplicate object" },
-  manual: { icon: PencilLine, label: "Manual" },
-  zoom: { icon: ZoomIn, label: "Zoom" },
-  brightness: { icon: Sun, label: "Brightness" },
-  unknown: { icon: Wand2, label: "Edit" },
+   duplicate_object: { icon: Copy, label: "Duplicate object" },
+   prettify: { icon: Wand2, label: "Prettify" },
+   manual: { icon: PencilLine, label: "Manual" },
+   zoom: { icon: ZoomIn, label: "Zoom" },
+   brightness: { icon: Sun, label: "Brightness" },
+   unknown: { icon: Wand2, label: "Edit" },
 };
 
 /**
