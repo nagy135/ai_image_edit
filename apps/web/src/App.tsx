@@ -37,6 +37,7 @@ import {
   MoveDown,
   Sparkles,
   Square,
+  Scissors,
   Shirt,
   Trash2,
   Wand2,
@@ -301,6 +302,11 @@ function ImageEditorApp() {
 
   const [isUploadingReference, setIsUploadingReference] = useState(false);
   const referenceFileInputRef = useRef<HTMLInputElement>(null);
+  type ReferenceTool = "dress_me" | "change_hair";
+  const [referenceTool, setReferenceTool] = useState<ReferenceTool>("dress_me");
+  const [batchReferenceTool, setBatchReferenceTool] = useState<
+    ReferenceTool | null
+  >(null);
   const generateUploadUrl = useMutation(api.images.generateUploadUrl);
 
   const controlsDisabled = isGenerating || !hasCredits || isUploadingReference;
@@ -319,6 +325,12 @@ function ImageEditorApp() {
   useEffect(() => {
     setAlternateShowingOriginal(false);
   }, [selectedImageId, imageViewerMode]);
+
+  useEffect(() => {
+    if (!batchReferenceStorageId) {
+      setBatchReferenceTool(null);
+    }
+  }, [batchReferenceStorageId]);
 
   // Sync slider state with selected image
   useEffect(() => {
@@ -604,11 +616,14 @@ function ImageEditorApp() {
       }
 
       // Copy PNG to clipboard
-      const ClipboardItemCtor = (window as any).ClipboardItem;
+      type ClipboardItemCtor = new (items: Record<string, Blob>) => unknown;
+      const ClipboardItemCtor = (
+        window as unknown as { ClipboardItem?: ClipboardItemCtor }
+      ).ClipboardItem;
       if (navigator.clipboard?.write && ClipboardItemCtor) {
         const clipboardItem = new ClipboardItemCtor({
           "image/png": pngBlob,
-        });
+        }) as unknown as ClipboardItem;
         await navigator.clipboard.write([clipboardItem]);
         setCopyState("copied");
         showImageActionMessage(
@@ -741,6 +756,13 @@ function ImageEditorApp() {
 
   const handleDressMeClick = () => {
     if (controlsDisabled) return;
+    setReferenceTool("dress_me");
+    referenceFileInputRef.current?.click();
+  };
+
+  const handleChangeHairClick = () => {
+    if (controlsDisabled) return;
+    setReferenceTool("change_hair");
     referenceFileInputRef.current?.click();
   };
 
@@ -758,18 +780,26 @@ function ImageEditorApp() {
     const zoom = source?.zoomPercent ?? zoomLevel;
     const brightness = source?.brightnessPercent ?? brightnessLevel;
 
+    const referencePrompt =
+      referenceTool === "dress_me" ? PROMPTS.dressMe : PROMPTS.changeHair;
+    const batchAddedMessage =
+      referenceTool === "dress_me"
+        ? "Clothing reference added to batch"
+        : "Hairstyle reference added to batch";
+
     setIsUploadingReference(true);
     try {
       const storageId = await uploadReferenceImage(file);
 
       if (isBatchMode) {
         setBatchReferenceStorageId(storageId);
-        enqueuePrompt(PROMPTS.dressMe);
-        showImageActionMessage("Clothing reference added to batch");
+        setBatchReferenceTool(referenceTool);
+        enqueuePrompt(referencePrompt);
+        showImageActionMessage(batchAddedMessage);
         return;
       }
 
-      await generateImage(PROMPTS.dressMe, "dress_me", zoom, brightness, {
+      await generateImage(referencePrompt, referenceTool, zoom, brightness, {
         referenceStorageId: storageId,
       });
     } catch (error) {
@@ -1264,6 +1294,7 @@ function ImageEditorApp() {
                       setIsBatchMode((prev) => !prev);
                       setPendingPrompts([]);
                       setBatchReferenceStorageId(null);
+                      setBatchReferenceTool(null);
                     }}
                     disabled={controlsDisabled}
                     className={`relative h-5 w-9 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -1509,18 +1540,40 @@ function ImageEditorApp() {
                       <Wand2 className="w-3 h-3" />
                       Prettify
                     </Button>
-                    <Button
-                      type="button"
-                      onClick={handleDressMeClick}
-                      disabled={controlsDisabled}
-                      variant="ghost"
-                      className="col-span-3 flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-lime-300/95 to-amber-300/95 hover:from-lime-200 hover:to-amber-200"
-                      title="Upload a clothing image reference"
-                    >
-                      <Shirt className="w-3 h-3" />
-                      Dress me
-                      {isBatchMode && batchReferenceStorageId ? " (ref ready)" : ""}
-                    </Button>
+                    <div className="col-span-3 grid grid-cols-2 gap-1.5">
+                      <Button
+                        type="button"
+                        onClick={handleDressMeClick}
+                        disabled={controlsDisabled}
+                        variant="ghost"
+                        className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-lime-300/95 to-amber-300/95 hover:from-lime-200 hover:to-amber-200"
+                        title="Upload a clothing image reference"
+                      >
+                        <Shirt className="w-3 h-3" />
+                        Dress me
+                        {isBatchMode &&
+                        batchReferenceStorageId &&
+                        batchReferenceTool === "dress_me"
+                          ? " (ref ready)"
+                          : ""}
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleChangeHairClick}
+                        disabled={controlsDisabled}
+                        variant="ghost"
+                        className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-300/95 to-fuchsia-300/95 hover:from-cyan-200 hover:to-fuchsia-200"
+                        title="Upload a hairstyle image reference"
+                      >
+                        <Scissors className="w-3 h-3" />
+                        Change hair
+                        {isBatchMode &&
+                        batchReferenceStorageId &&
+                        batchReferenceTool === "change_hair"
+                          ? " (ref ready)"
+                          : ""}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1752,6 +1805,7 @@ function ImageEditorApp() {
                         setIsBatchMode((prev) => !prev);
                         setPendingPrompts([]);
                         setBatchReferenceStorageId(null);
+                        setBatchReferenceTool(null);
                       }}
                       disabled={controlsDisabled}
                       className={`relative h-6 w-11 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -1896,18 +1950,40 @@ function ImageEditorApp() {
                   icon={Wand2}
                   toneClassName="bg-gradient-to-r from-cyan-400/90 to-blue-300/90 hover:from-cyan-300 hover:to-blue-200"
                 />
-                <Button
-                  type="button"
-                  onClick={handleDressMeClick}
-                  disabled={controlsDisabled}
-                  variant="ghost"
-                  className="col-span-3 flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2.5 text-xs shadow-[0_8px_20px_rgba(45,212,191,0.12)] text-black font-semibold transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-lime-300/95 to-amber-300/95 hover:from-lime-200 hover:to-amber-200"
-                  title="Upload a clothing image reference"
-                >
-                  <Shirt className="w-4 h-4" />
-                  Dress me
-                  {isBatchMode && batchReferenceStorageId ? " (ref ready)" : ""}
-                </Button>
+                <div className="col-span-3 grid grid-cols-2 gap-1.5">
+                  <Button
+                    type="button"
+                    onClick={handleDressMeClick}
+                    disabled={controlsDisabled}
+                    variant="ghost"
+                    className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2.5 text-xs shadow-[0_8px_20px_rgba(45,212,191,0.12)] text-black font-semibold transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-lime-300/95 to-amber-300/95 hover:from-lime-200 hover:to-amber-200"
+                    title="Upload a clothing image reference"
+                  >
+                    <Shirt className="w-4 h-4" />
+                    Dress me
+                    {isBatchMode &&
+                    batchReferenceStorageId &&
+                    batchReferenceTool === "dress_me"
+                      ? " (ref ready)"
+                      : ""}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleChangeHairClick}
+                    disabled={controlsDisabled}
+                    variant="ghost"
+                    className="flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2.5 text-xs shadow-[0_8px_20px_rgba(45,212,191,0.12)] text-black font-semibold transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-300/95 to-fuchsia-300/95 hover:from-cyan-200 hover:to-fuchsia-200"
+                    title="Upload a hairstyle image reference"
+                  >
+                    <Scissors className="w-4 h-4" />
+                    Change hair
+                    {isBatchMode &&
+                    batchReferenceStorageId &&
+                    batchReferenceTool === "change_hair"
+                      ? " (ref ready)"
+                      : ""}
+                  </Button>
+                </div>
               </div>
             </section>
 

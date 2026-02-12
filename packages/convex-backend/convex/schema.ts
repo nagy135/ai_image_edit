@@ -47,6 +47,7 @@ export default defineSchema({
         v.literal("duplicate_object"),
         v.literal("prettify"),
         v.literal("dress_me"),
+        v.literal("change_hair"),
         v.literal("manual"),
         v.literal("zoom"),
         v.literal("brightness"),

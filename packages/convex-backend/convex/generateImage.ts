@@ -46,16 +46,18 @@ Hard requirements:
 - Preserve the same subject identity (especially faces), scene, and overall style.
 - If there are people, they must remain the same people.
 - Do not introduce extra people, extra limbs, or major composition changes unless asked.
+- Dont change size or aspect ratio of the image, unless prompted otherwise.
 
 Controls:
 - Zoom (0-200): 100 = original framing; 0 = zoomed out so main object is ~half size; 200 = zoomed in so main object is ~2x size.
 - Brightness (0-200): 100 = original brightness; 0 = black; 200 = white.
 
-Sometimes you will also receive a clothing reference image.
-When a clothing reference is present:
-- Use it as the source of the outfit (garment type, colors, pattern, logos, materials).
-- Dress the subject in that outfit realistically (fit, folds, lighting, shadows, perspective).
-- Keep the subject's face, body, pose, and the environment the same unless asked.
+Sometimes you will also receive a reference image (e.g. clothing or hairstyle).
+When a reference image is present:
+- Use it only for what the Prompt requests (e.g. outfit details, hairstyle).
+- Keep the subject identity and everything else the same unless explicitly asked.
+- If the Prompt asks to dress the subject, use the reference as the outfit guide (garment type, colors, pattern, logos, materials) and make it look realistically fitted.
+- If the Prompt asks to change hair, use the reference as the hairstyle guide and change only the hair.
 
 You will receive data in this order (some sections may be omitted depending on availability):
 
@@ -69,7 +71,7 @@ Original image (identity reference):
 
 ---
 
-Clothing to wear (reference):
+Reference image (style guide):
 
 ---
 
@@ -81,25 +83,26 @@ Prompt:
 
 // Action that generates, stores, and appends the next step.
 export const generateNextStep = action({
-   args: {
-     chainId: v.id("imageChains"),
-     clerkUserId: v.string(),
-     sourceImageId: v.id("images"),
-     prompt: v.string(),
-     editType: v.union(
-       v.literal("align_left"),
-       v.literal("align_right"),
-       v.literal("center"),
-       v.literal("make_old"),
-       v.literal("make_young"),
-       v.literal("delete_background"),
-       v.literal("add_background"),
-       v.literal("remove_object"),
-       v.literal("make_square"),
-       v.literal("make_circular"),
+  args: {
+    chainId: v.id("imageChains"),
+    clerkUserId: v.string(),
+    sourceImageId: v.id("images"),
+    prompt: v.string(),
+    editType: v.union(
+      v.literal("align_left"),
+      v.literal("align_right"),
+      v.literal("center"),
+      v.literal("make_old"),
+      v.literal("make_young"),
+      v.literal("delete_background"),
+      v.literal("add_background"),
+      v.literal("remove_object"),
+      v.literal("make_square"),
+      v.literal("make_circular"),
       v.literal("duplicate_object"),
       v.literal("prettify"),
       v.literal("dress_me"),
+      v.literal("change_hair"),
       v.literal("manual"),
       v.literal("zoom"),
       v.literal("brightness"),
@@ -205,7 +208,7 @@ export const generateNextStep = action({
       apiKey,
     });
 
-    // Optional clothing/reference image
+    // Optional reference image
     let referenceImageBase64: string | undefined;
     if (args.referenceStorageId) {
       const refBlob = await ctx.storage.get(args.referenceStorageId);
@@ -216,10 +219,10 @@ export const generateNextStep = action({
     }
 
     // Build the message content
-    // Ordering requirement (for consistency and for clothing reference usage):
+    // Ordering requirement (for consistency and for reference usage):
     // - Always include the selected image first (the one to edit)
     // - Include original image next when it's a different image (identity reference)
-    // - Include clothing/reference image last (if provided)
+    // - Include reference image last (if provided)
     // - Then the prompt
     const messageContent: any[] = [];
 
@@ -253,7 +256,7 @@ export const generateNextStep = action({
     if (referenceImageBase64) {
       messageContent.push({
         type: "text",
-        text: "Clothing to wear (reference):",
+        text: "Reference image (style guide):",
       });
       messageContent.push({
         type: "image_url",
@@ -270,24 +273,25 @@ export const generateNextStep = action({
       text: prompt,
     });
 
-     // Call OpenRouter
-     const modelToUse = args.model === "gemini-3-pro-image-preview"
-       ? "google/gemini-3-pro-image-preview"
-       : "google/gemini-2.5-flash-image";
+    // Call OpenRouter
+    const modelToUse =
+      args.model === "gemini-3-pro-image-preview"
+        ? "google/gemini-3-pro-image-preview"
+        : "google/gemini-2.5-flash-image";
 
-     const result = await openRouter.chat.send({
-       chatGenerationParams: {
-         model: modelToUse,
-         messages: [
-           {
-             role: "user",
-             content: messageContent,
-           },
-         ],
-         modalities: ["image", "text"],
-         stream: false,
-       },
-     });
+    const result = await openRouter.chat.send({
+      chatGenerationParams: {
+        model: modelToUse,
+        messages: [
+          {
+            role: "user",
+            content: messageContent,
+          },
+        ],
+        modalities: ["image", "text"],
+        stream: false,
+      },
+    });
 
     // Extract the generated image
     if (!result.choices || result.choices.length === 0) {

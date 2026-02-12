@@ -10,6 +10,7 @@ import {
   ImagePlus,
   PencilLine,
   Shirt,
+  Scissors,
   Sparkles,
   Square,
   Sun,
@@ -47,6 +48,7 @@ export const EDIT_TYPE_ICON_MAP: Record<string, EditTypeMeta> = {
    duplicate_object: { icon: Copy, label: "Duplicate object" },
    prettify: { icon: Wand2, label: "Prettify" },
    dress_me: { icon: Shirt, label: "Dress me" },
+   change_hair: { icon: Scissors, label: "Change hair" },
    manual: { icon: PencilLine, label: "Manual" },
    zoom: { icon: ZoomIn, label: "Zoom" },
    brightness: { icon: Sun, label: "Brightness" },
@@ -88,4 +90,6 @@ export const PROMPTS = {
     "Fix small imperfections and blemishes in the photo for a polished look. Subtly improve skin texture, remove minor marks, and enhance overall clarity without overdoing it or changing the natural appearance.",
   dressMe:
     "Dress the subject in the clothing shown in the reference image. Keep the same person, face, body shape, pose, background, and lighting. Match the garment's colors, pattern, texture, logos, and overall design; make it look realistically fitted with natural folds and shadows.",
+  changeHair:
+    "Change the subject's hairstyle to match the hair shown in the reference image. Preserve everything else about the person: same identity/face, skin tone, expression, body shape, pose, clothing, background, lighting, and overall photo style. Only change the hair cut/style (and hair color only if it is clearly part of the reference). Make the hairline, strands, texture, and edges look realistic.",
 } as const;
