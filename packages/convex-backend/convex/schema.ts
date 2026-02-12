@@ -46,6 +46,7 @@ export default defineSchema({
         v.literal("make_circular"),
         v.literal("duplicate_object"),
         v.literal("prettify"),
+        v.literal("dress_me"),
         v.literal("manual"),
         v.literal("zoom"),
         v.literal("brightness"),

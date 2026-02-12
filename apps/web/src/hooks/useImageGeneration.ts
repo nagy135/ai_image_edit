@@ -11,19 +11,24 @@ interface UseImageGenerationReturn {
   isBatchMode: boolean;
   pendingPrompts: string[];
   manualPrompt: string;
+  batchReferenceStorageId: Id<"_storage"> | null;
 
   // Actions
   generateImage: (
     prompt: string,
     editType: EditType,
     nextZoomPercent?: number,
-    nextBrightnessPercent?: number
+    nextBrightnessPercent?: number,
+    opts?: {
+      referenceStorageId?: Id<"_storage"> | null;
+    }
   ) => Promise<void>;
   enqueuePrompt: (prompt: string) => void;
   handleBatchGenerate: () => Promise<void>;
   setIsBatchMode: (value: boolean | ((prev: boolean) => boolean)) => void;
   setManualPrompt: (value: string) => void;
   setPendingPrompts: (value: string[] | ((prev: string[]) => string[])) => void;
+  setBatchReferenceStorageId: (value: Id<"_storage"> | null) => void;
 }
 
 export function useImageGeneration(
@@ -40,16 +45,22 @@ export function useImageGeneration(
   const [isBatchMode, setIsBatchMode] = useState(false);
   const [pendingPrompts, setPendingPrompts] = useState<string[]>([]);
   const [manualPrompt, setManualPrompt] = useState("");
+  const [batchReferenceStorageId, setBatchReferenceStorageId] = useState<
+    Id<"_storage"> | null
+  >(null);
 
   const generateNextStep = useAction(api.generateImage.generateNextStep);
 
    const generateImage = useCallback(
      async (
-       prompt: string,
-       editType: EditType,
-       nextZoomPercent?: number,
-       nextBrightnessPercent?: number
-     ) => {
+        prompt: string,
+        editType: EditType,
+        nextZoomPercent?: number,
+        nextBrightnessPercent?: number,
+        opts?: {
+          referenceStorageId?: Id<"_storage"> | null;
+        }
+      ) => {
        if (!currentChainId || !images || images.length === 0) return;
        if (!hasCredits) {
          alert("You have run out of credits. Please try again later or contact support.");
@@ -68,16 +79,17 @@ export function useImageGeneration(
 
          const finalEditType = (editType === "original" || !editType) ? "unknown" : editType;
          
-          await generateNextStep({
-            chainId: currentChainId,
-            clerkUserId: clerkUserId || "",
-            sourceImageId: sourceImage._id,
-            prompt,
-            editType: finalEditType,
-            zoomPercent,
-            brightnessPercent,
-            model: selectedModel,
-          });
+           await generateNextStep({
+             chainId: currentChainId,
+             clerkUserId: clerkUserId || "",
+             sourceImageId: sourceImage._id,
+             prompt,
+             editType: finalEditType,
+             zoomPercent,
+             brightnessPercent,
+             model: selectedModel,
+             referenceStorageId: opts?.referenceStorageId ?? undefined,
+           });
          // Clear selected image to auto-select latest
          if (setSelectedImageId) {
            setSelectedImageId(null);
@@ -90,8 +102,8 @@ export function useImageGeneration(
         setActivePrompt("");
       }
     },
-       [currentChainId, images, getSelectedImage, generateNextStep, setSelectedImageId, selectedModel, clerkUserId, hasCredits]
-   );
+        [currentChainId, images, getSelectedImage, generateNextStep, setSelectedImageId, selectedModel, clerkUserId, hasCredits]
+    );
 
   const enqueuePrompt = useCallback((prompt: string) => {
     if (!prompt.trim()) return;
@@ -99,15 +111,18 @@ export function useImageGeneration(
   }, []);
 
    const handleBatchGenerate = useCallback(async () => {
-     if (!pendingPrompts.length) return;
-     const combinedPrompt = pendingPrompts.join("\n\n");
-     const sourceImage = getSelectedImage();
-     const zoomPercent = sourceImage?.zoomPercent ?? 100;
-     const brightnessPercent = sourceImage?.brightnessPercent ?? 100;
+      if (!pendingPrompts.length) return;
+      const combinedPrompt = pendingPrompts.join("\n\n");
+      const sourceImage = getSelectedImage();
+      const zoomPercent = sourceImage?.zoomPercent ?? 100;
+      const brightnessPercent = sourceImage?.brightnessPercent ?? 100;
 
-     await generateImage(combinedPrompt, "manual", zoomPercent, brightnessPercent);
-     setPendingPrompts([]);
-   }, [pendingPrompts, getSelectedImage, generateImage]);
+      await generateImage(combinedPrompt, "manual", zoomPercent, brightnessPercent, {
+        referenceStorageId: batchReferenceStorageId,
+      });
+      setPendingPrompts([]);
+      setBatchReferenceStorageId(null);
+    }, [pendingPrompts, getSelectedImage, generateImage, batchReferenceStorageId]);
 
    return {
      isGenerating,
@@ -115,11 +130,13 @@ export function useImageGeneration(
      isBatchMode,
      pendingPrompts,
      manualPrompt,
+     batchReferenceStorageId,
      generateImage,
      enqueuePrompt,
      handleBatchGenerate,
      setIsBatchMode,
      setManualPrompt,
      setPendingPrompts,
-   };
+     setBatchReferenceStorageId,
+    };
 }

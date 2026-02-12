@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { SignInButton, UserButton, useUser } from "@clerk/clerk-react";
 import { Button } from "./components/ui/button";
@@ -37,6 +37,7 @@ import {
   MoveDown,
   Sparkles,
   Square,
+  Shirt,
   Trash2,
   Wand2,
 } from "lucide-react";
@@ -280,12 +281,14 @@ function ImageEditorApp() {
     isBatchMode,
     pendingPrompts,
     manualPrompt,
+    batchReferenceStorageId,
     generateImage,
     enqueuePrompt,
     handleBatchGenerate,
     setIsBatchMode,
     setManualPrompt,
     setPendingPrompts,
+    setBatchReferenceStorageId,
   } = useImageGeneration(
     currentChainId,
     images,
@@ -296,7 +299,11 @@ function ImageEditorApp() {
     hasCredits,
   );
 
-  const controlsDisabled = isGenerating || !hasCredits;
+  const [isUploadingReference, setIsUploadingReference] = useState(false);
+  const referenceFileInputRef = useRef<HTMLInputElement>(null);
+  const generateUploadUrl = useMutation(api.images.generateUploadUrl);
+
+  const controlsDisabled = isGenerating || !hasCredits || isUploadingReference;
 
   // Image action states (copy/download)
   const [copyState, setCopyState] = useState<
@@ -454,6 +461,27 @@ function ImageEditorApp() {
     window.setTimeout(() => {
       setImageActionMessage(null);
     }, 1800);
+  };
+
+  const uploadReferenceImage = async (file: File): Promise<Id<"_storage">> => {
+    if (!clerkUserId) {
+      throw new Error("Not authenticated");
+    }
+    const uploadUrl = await generateUploadUrl({ clerkUserId });
+    const uploadResponse = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error("Upload failed");
+    }
+
+    const { storageId } = (await uploadResponse.json()) as {
+      storageId: Id<"_storage">;
+    };
+    return storageId;
   };
 
   const handleShareLink = async () => {
@@ -711,6 +739,47 @@ function ImageEditorApp() {
     );
   };
 
+  const handleDressMeClick = () => {
+    if (controlsDisabled) return;
+    referenceFileInputRef.current?.click();
+  };
+
+  const handleReferenceFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Allow re-selecting the same file twice.
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file");
+      return;
+    }
+
+    const source = getSelectedImage(images, selectedImageId);
+    const zoom = source?.zoomPercent ?? zoomLevel;
+    const brightness = source?.brightnessPercent ?? brightnessLevel;
+
+    setIsUploadingReference(true);
+    try {
+      const storageId = await uploadReferenceImage(file);
+
+      if (isBatchMode) {
+        setBatchReferenceStorageId(storageId);
+        enqueuePrompt(PROMPTS.dressMe);
+        showImageActionMessage("Clothing reference added to batch");
+        return;
+      }
+
+      await generateImage(PROMPTS.dressMe, "dress_me", zoom, brightness, {
+        referenceStorageId: storageId,
+      });
+    } catch (error) {
+      console.error("Reference upload failed:", error);
+      alert("Failed to upload reference image");
+    } finally {
+      setIsUploadingReference(false);
+    }
+  };
+
   const handleZoomRelease = async (value: number) => {
     const base = getSelectedImage(images, selectedImageId)?.zoomPercent ?? 100;
     if (value === base) return;
@@ -899,6 +968,13 @@ function ImageEditorApp() {
       className="min-h-screen px-3 py-4 lg:px-6 lg:py-8"
       style={APP_SHELL_STYLE}
     >
+      <input
+        ref={referenceFileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleReferenceFileChange}
+      />
       <div className="mx-auto max-w-6xl app-anim-in">
         <header className="flex flex-wrap items-center justify-between gap-2 lg:gap-4">
           <div className="flex items-center gap-2 lg:gap-3">
@@ -1187,6 +1263,7 @@ function ImageEditorApp() {
                       if (controlsDisabled) return;
                       setIsBatchMode((prev) => !prev);
                       setPendingPrompts([]);
+                      setBatchReferenceStorageId(null);
                     }}
                     disabled={controlsDisabled}
                     className={`relative h-5 w-9 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -1432,6 +1509,18 @@ function ImageEditorApp() {
                       <Wand2 className="w-3 h-3" />
                       Prettify
                     </Button>
+                    <Button
+                      type="button"
+                      onClick={handleDressMeClick}
+                      disabled={controlsDisabled}
+                      variant="ghost"
+                      className="col-span-3 flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-lime-300/95 to-amber-300/95 hover:from-lime-200 hover:to-amber-200"
+                      title="Upload a clothing image reference"
+                    >
+                      <Shirt className="w-3 h-3" />
+                      Dress me
+                      {isBatchMode && batchReferenceStorageId ? " (ref ready)" : ""}
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -1662,6 +1751,7 @@ function ImageEditorApp() {
                         if (controlsDisabled) return;
                         setIsBatchMode((prev) => !prev);
                         setPendingPrompts([]);
+                        setBatchReferenceStorageId(null);
                       }}
                       disabled={controlsDisabled}
                       className={`relative h-6 w-11 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -1806,6 +1896,18 @@ function ImageEditorApp() {
                   icon={Wand2}
                   toneClassName="bg-gradient-to-r from-cyan-400/90 to-blue-300/90 hover:from-cyan-300 hover:to-blue-200"
                 />
+                <Button
+                  type="button"
+                  onClick={handleDressMeClick}
+                  disabled={controlsDisabled}
+                  variant="ghost"
+                  className="col-span-3 flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2.5 text-xs shadow-[0_8px_20px_rgba(45,212,191,0.12)] text-black font-semibold transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-lime-300/95 to-amber-300/95 hover:from-lime-200 hover:to-amber-200"
+                  title="Upload a clothing image reference"
+                >
+                  <Shirt className="w-4 h-4" />
+                  Dress me
+                  {isBatchMode && batchReferenceStorageId ? " (ref ready)" : ""}
+                </Button>
               </div>
             </section>
 

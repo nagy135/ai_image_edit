@@ -9,6 +9,7 @@ import {
   Image as ImageIcon,
   ImagePlus,
   PencilLine,
+  Shirt,
   Sparkles,
   Square,
   Sun,
@@ -45,6 +46,7 @@ export const EDIT_TYPE_ICON_MAP: Record<string, EditTypeMeta> = {
   make_circular: { icon: Circle, label: "Make circular" },
    duplicate_object: { icon: Copy, label: "Duplicate object" },
    prettify: { icon: Wand2, label: "Prettify" },
+   dress_me: { icon: Shirt, label: "Dress me" },
    manual: { icon: PencilLine, label: "Manual" },
    zoom: { icon: ZoomIn, label: "Zoom" },
    brightness: { icon: Sun, label: "Brightness" },
@@ -84,4 +86,6 @@ export const PROMPTS = {
     "Duplicate the main object or subject in the image. Place the duplicate next to the original in a natural-looking arrangement.",
   prettify:
     "Fix small imperfections and blemishes in the photo for a polished look. Subtly improve skin texture, remove minor marks, and enhance overall clarity without overdoing it or changing the natural appearance.",
+  dressMe:
+    "Dress the subject in the clothing shown in the reference image. Keep the same person, face, body shape, pose, background, and lighting. Match the garment's colors, pattern, texture, logos, and overall design; make it look realistically fitted with natural folds and shadows.",
 } as const;

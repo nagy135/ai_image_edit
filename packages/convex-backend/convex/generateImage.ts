@@ -38,21 +38,38 @@ const parseBase64DataUrl = (
 };
 
 const SYSTEM_PROMPT = `
-You are an AI image editor. Your task is to edit the selected image (if its present, first generation doesnt have it) with the prompt but keep close to original image.
-Keep the same subject and style unless specified otherwise in the prompt.
-If there are people in the image, make sure they are the same as in original image.
-Zoom (value 0-200): 100 = original framing, 0 = zoomed out so that main object is half the original size, 200 = zoomed in so that object is twice as big
-Brightness (value 0-200): 100 = original brightness, 0 = black, 200 = white
+You are an AI image editor.
 
-You will receive data in the following format:
+Your task: edit the image-to-edit according to the Prompt, while keeping the result very close to the input photo unless the Prompt explicitly requests bigger changes.
+
+Hard requirements:
+- Preserve the same subject identity (especially faces), scene, and overall style.
+- If there are people, they must remain the same people.
+- Do not introduce extra people, extra limbs, or major composition changes unless asked.
+
+Controls:
+- Zoom (0-200): 100 = original framing; 0 = zoomed out so main object is ~half size; 200 = zoomed in so main object is ~2x size.
+- Brightness (0-200): 100 = original brightness; 0 = black; 200 = white.
+
+Sometimes you will also receive a clothing reference image.
+When a clothing reference is present:
+- Use it as the source of the outfit (garment type, colors, pattern, logos, materials).
+- Dress the subject in that outfit realistically (fit, folds, lighting, shadows, perspective).
+- Keep the subject's face, body, pose, and the environment the same unless asked.
+
+You will receive data in this order (some sections may be omitted depending on availability):
 
 ---
 
-Original image:
+Selected image (apply edits to this):
 
 ---
 
-Latest image in the chain (apply edits to this):
+Original image (identity reference):
+
+---
+
+Clothing to wear (reference):
 
 ---
 
@@ -80,16 +97,18 @@ export const generateNextStep = action({
        v.literal("remove_object"),
        v.literal("make_square"),
        v.literal("make_circular"),
-       v.literal("duplicate_object"),
-       v.literal("prettify"),
-       v.literal("manual"),
-       v.literal("zoom"),
-       v.literal("brightness"),
-       v.literal("unknown"),
-     ),
+      v.literal("duplicate_object"),
+      v.literal("prettify"),
+      v.literal("dress_me"),
+      v.literal("manual"),
+      v.literal("zoom"),
+      v.literal("brightness"),
+      v.literal("unknown"),
+    ),
     zoomPercent: v.optional(v.number()),
     brightnessPercent: v.optional(v.number()),
     model: v.optional(v.string()),
+    referenceStorageId: v.optional(v.id("_storage")),
   },
   handler: async (
     ctx,
@@ -186,32 +205,60 @@ export const generateNextStep = action({
       apiKey,
     });
 
+    // Optional clothing/reference image
+    let referenceImageBase64: string | undefined;
+    if (args.referenceStorageId) {
+      const refBlob = await ctx.storage.get(args.referenceStorageId);
+      if (!refBlob) {
+        throw new Error("Reference image not found in storage");
+      }
+      referenceImageBase64 = await blobToDataUrl(refBlob);
+    }
+
     // Build the message content
-    // Content ordering requirement:
-    // - First generation: original_image, prompt
-    // - Subsequent generations: original_image, parent_image, prompt
+    // Ordering requirement (for consistency and for clothing reference usage):
+    // - Always include the selected image first (the one to edit)
+    // - Include original image next when it's a different image (identity reference)
+    // - Include clothing/reference image last (if provided)
+    // - Then the prompt
     const messageContent: any[] = [];
 
     messageContent.push({
       type: "text",
-      text: "Original image:",
+      text: "Selected image (apply edits to this):",
     });
     messageContent.push({
       type: "image_url",
       imageUrl: {
-        url: originalImageBase64 ?? currentImageBase64,
+        url: currentImageBase64,
       },
     });
 
     if (includeParentImage) {
+      if (!originalImageBase64) {
+        throw new Error("Original image base64 not available");
+      }
       messageContent.push({
         type: "text",
-        text: "Selected image (apply edits to this):",
+        text: "Original image (identity reference):",
       });
       messageContent.push({
         type: "image_url",
         imageUrl: {
-          url: currentImageBase64,
+          url: originalImageBase64,
+        },
+      });
+    }
+
+    if (referenceImageBase64) {
+      messageContent.push({
+        type: "text",
+        text: "Clothing to wear (reference):",
+      });
+      messageContent.push({
+        type: "image_url",
+        imageUrl: {
+          url: referenceImageBase64,
         },
       });
     }
