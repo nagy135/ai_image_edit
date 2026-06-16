@@ -62,6 +62,7 @@ import {
   buildHistoryLayout,
   buildZoomPrompt,
   buildBrightnessPrompt,
+  getImageAncestorPath,
   getTooltipText,
   getImageUrl,
   navigateHistoryTree,
@@ -824,12 +825,11 @@ function ImageEditorApp() {
       ];
   const historyColumns = Math.max(1, historyLayout.maxDepth);
   const selectedHistoryId = selectedImageId ?? currentImage._id;
-  const historyImages = [...images].sort((a, b) => {
-    if (a.stepNumber !== b.stepNumber) {
-      return a.stepNumber - b.stepNumber;
-    }
-    return a.createdAt - b.createdAt;
-  });
+  const historyPathImages = getImageAncestorPath(images, selectedHistoryId);
+  const handleSelectHistoryImage = (imageId: Id<"images">) => {
+    setSelectedImageId(imageId);
+    setImageViewerMode("history");
+  };
   const clearBatch = () => {
     setPendingPrompts([]);
     setBatchReferenceStorageId(null);
@@ -899,7 +899,7 @@ function ImageEditorApp() {
               currentChainId={currentChainId}
               currentImage={currentImage}
               originalImage={originalImage}
-              historyImages={historyImages}
+              historyPathImages={historyPathImages}
               selectedHistoryId={selectedHistoryId}
               latestStepNumber={latestStepNumber}
               currentImageSrc={currentImageSrc}
@@ -915,7 +915,7 @@ function ImageEditorApp() {
               downloadState={downloadState}
               imageActionMessage={imageActionMessage}
               onOpenHistoryModal={() => setIsHistoryModalOpen(true)}
-              onSelectImage={setSelectedImageId}
+              onSelectImage={handleSelectHistoryImage}
               onCopyCurrentImage={handleCopyCurrentImage}
               onDownloadCurrentImage={handleDownloadCurrentImage}
               onShareLink={handleShareLink}
@@ -1036,7 +1036,7 @@ function ImageEditorApp() {
                                             disabled={controlsDisabled}
                                             onClick={() => {
                                               if (controlsDisabled) return;
-                                              setSelectedImageId(
+                                              handleSelectHistoryImage(
                                                 visibleImage._id,
                                               );
                                             }}
@@ -1476,7 +1476,9 @@ function ImageEditorApp() {
                                         disabled={controlsDisabled}
                                         onClick={() => {
                                           if (controlsDisabled) return;
-                                          setSelectedImageId(visibleImage._id);
+                                          handleSelectHistoryImage(
+                                            visibleImage._id,
+                                          );
                                           setIsHistoryModalOpen(false);
                                         }}
                                         className={`group block w-16 h-16 rounded-xl overflow-hidden border transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${

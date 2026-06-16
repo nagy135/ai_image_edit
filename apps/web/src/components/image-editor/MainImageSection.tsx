@@ -1,13 +1,7 @@
+import { useEffect, useRef } from "react";
 import { Copy, Download, Link2 } from "lucide-react";
 
 import { Button } from "../ui/button";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "../ui/carousel";
 import {
   Tooltip,
   TooltipContent,
@@ -26,7 +20,7 @@ type MainImageSectionProps = {
   currentChainId: Id<"imageChains"> | null;
   currentImage: ImageWithUrl;
   originalImage: ImageWithUrl;
-  historyImages: ImageWithUrl[];
+  historyPathImages: ImageWithUrl[];
   selectedHistoryId: Id<"images">;
   latestStepNumber: number;
   currentImageSrc: string;
@@ -121,28 +115,48 @@ function ViewerImage({
   );
 }
 
-function HistoryCarousel({
-  historyImages,
+function HistoryBranchStrip({
+  historyPathImages,
   selectedHistoryId,
   controlsDisabled,
   onSelectImage,
 }: {
-  historyImages: ImageWithUrl[];
+  historyPathImages: ImageWithUrl[];
   selectedHistoryId: Id<"images">;
   controlsDisabled: boolean;
   onSelectImage: (imageId: Id<"images">) => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) return;
+
+    scrollElement.scrollTo({
+      left: scrollElement.scrollWidth,
+      behavior: "smooth",
+    });
+  }, [selectedHistoryId, historyPathImages.length]);
+
   return (
-    <Carousel
-      opts={{ align: "start" }}
-      className="box-border h-[52vh] min-h-0 lg:h-[56vh] pt-10"
+    <div
+      ref={scrollRef}
+      className="h-[52vh] min-h-[260px] lg:h-[56vh] overflow-x-auto overflow-y-hidden pt-10 pb-2"
     >
-      <CarouselContent className="h-full min-h-0 -ml-0">
-        {historyImages.map((image) => {
+      <div className="flex h-full min-w-full w-max items-stretch justify-end gap-2 lg:gap-3">
+        {historyPathImages.map((image, index) => {
           const isSelected = image._id === selectedHistoryId;
 
           return (
-            <CarouselItem key={image._id} className="h-full min-h-0 pl-0">
+            <div
+              key={image._id}
+              className="flex h-full shrink-0 items-stretch gap-2 lg:gap-3"
+            >
+              {index > 0 && (
+                <div className="flex h-full w-5 shrink-0 items-center justify-center text-[color:var(--app-faint)]">
+                  <span className="h-px w-full bg-white/15" />
+                </div>
+              )}
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -153,7 +167,7 @@ function HistoryCarousel({
                         if (controlsDisabled) return;
                         onSelectImage(image._id);
                       }}
-                      className={`group relative grid h-full min-h-0 w-full place-items-center rounded-xl border bg-black/20 overflow-hidden text-left transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                      className={`group relative grid h-full w-[min(72vw,340px)] shrink-0 place-items-center rounded-xl border bg-black/20 overflow-hidden text-left transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
                         isSelected
                           ? "border-teal-300/70 shadow-[0_0_0_2px_rgba(45,212,191,0.18)]"
                           : "border-white/10 hover:border-white/25"
@@ -183,13 +197,11 @@ function HistoryCarousel({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-            </CarouselItem>
+            </div>
           );
         })}
-      </CarouselContent>
-      <CarouselPrevious className="left-2 z-10" />
-      <CarouselNext className="right-2 z-10" />
-    </Carousel>
+      </div>
+    </div>
   );
 }
 
@@ -198,7 +210,7 @@ export function MainImageSection({
   currentChainId,
   currentImage,
   originalImage,
-  historyImages,
+  historyPathImages,
   selectedHistoryId,
   latestStepNumber,
   currentImageSrc,
@@ -325,8 +337,8 @@ export function MainImageSection({
         )}
 
         {imageViewerMode === "history" && (
-          <HistoryCarousel
-            historyImages={historyImages}
+          <HistoryBranchStrip
+            historyPathImages={historyPathImages}
             selectedHistoryId={selectedHistoryId}
             controlsDisabled={controlsDisabled}
             onSelectImage={onSelectImage}

@@ -141,6 +141,38 @@ export function getLatestImage(
 }
 
 /**
+ * Get the selected image branch from the original image to the selected node.
+ */
+export function getImageAncestorPath(
+  images: ImageWithUrl[],
+  selectedImageId: Id<"images"> | null
+): ImageWithUrl[] {
+  if (images.length === 0) return [];
+
+  const imageMap = new Map<Id<"images">, ImageWithUrl>();
+  for (const image of images) {
+    imageMap.set(image._id, image);
+  }
+
+  const fallbackImage = getSelectedImage(images, selectedImageId);
+  if (!fallbackImage) return [];
+
+  const path: ImageWithUrl[] = [];
+  const visited = new Set<Id<"images">>();
+  let current: ImageWithUrl | undefined = fallbackImage;
+
+  while (current && !visited.has(current._id)) {
+    path.push(current);
+    visited.add(current._id);
+    current = current.parentImageId
+      ? imageMap.get(current.parentImageId)
+      : undefined;
+  }
+
+  return path.reverse();
+}
+
+/**
  * Build a zoom adjustment prompt.
  */
 export function buildZoomPrompt(value: number, base: number): string {
