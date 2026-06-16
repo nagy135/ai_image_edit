@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { SignInButton, UserButton, useUser } from "@clerk/clerk-react";
+import { UserButton, useUser } from "@clerk/clerk-react";
 import { Button } from "./components/ui/button";
 import {
   Select,
@@ -9,13 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "./components/ui/carousel";
 import {
   Tooltip,
   TooltipContent,
@@ -36,8 +29,6 @@ import {
   Circle,
   Copy,
   CornerDownRight,
-  Link2,
-  Download,
   Eraser,
   Focus,
   ImagePlus,
@@ -52,6 +43,16 @@ import {
 import { EditSlider } from "./components/EditSlider";
 import { PositionButton } from "./components/buttons/PositionButton";
 import { UploadView } from "./components/UploadView";
+import {
+  AuthLoadingView,
+  SignedInGate,
+  SignedOutView,
+} from "./components/auth/AuthViews";
+import { MainImageSection } from "./components/image-editor/MainImageSection";
+import {
+  MobileToolsPanel,
+  type ReferenceTool,
+} from "./components/image-editor/ToolPanels";
 import { useImageChain } from "./hooks/useImageChain";
 import { useImageGeneration } from "./hooks/useImageGeneration";
 import { api } from "@repo/convex-backend/convex/_generated/api";
@@ -66,151 +67,8 @@ import {
   navigateHistoryTree,
 } from "./utils";
 import { APP_SHELL_STYLE, EDIT_TYPE_ICON_MAP, PROMPTS } from "./constants";
-import type { AdminChainWithUrl, Id, ImageWithUrl } from "./types";
+import type { AdminChainWithUrl, Id } from "./types";
 import { useImageViewerStore } from "./stores/useImageViewerStore";
-
-function AuthLoadingView({
-  title,
-  subtitle,
-}: {
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <div className="min-h-screen px-6 py-10" style={APP_SHELL_STYLE}>
-      <div className="mx-auto max-w-4xl app-anim-in">
-        <div className="app-card rounded-3xl p-6 lg:p-8 text-center">
-          <div className="mx-auto mb-4 h-12 w-12 rounded-2xl bg-white/5 border border-white/10 grid place-items-center">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-          </div>
-          <h1 className="text-lg font-semibold">{title}</h1>
-          <p className="mt-2 text-sm text-[color:var(--app-muted)]">
-            {subtitle}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SignedOutView() {
-  return (
-    <div className="min-h-screen px-6 py-10" style={APP_SHELL_STYLE}>
-      <div className="mx-auto max-w-6xl app-anim-in">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-teal-400 to-lime-300 shadow-[0_18px_40px_rgba(45,212,191,0.18)]" />
-            <div>
-              <p className="text-xs tracking-wide text-[color:var(--app-muted)]">
-                AI Image Edit
-              </p>
-              <h1 className="text-lg font-semibold">
-                Private AI edits, just for you
-              </h1>
-            </div>
-          </div>
-          <SignInButton mode="modal">
-            <Button
-              type="button"
-              variant="secondary"
-              className="h-auto rounded-full px-4 py-2 text-xs font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition"
-            >
-              Sign in
-            </Button>
-          </SignInButton>
-        </header>
-
-        <main className="mt-10 gap-6 ">
-          <section className="app-card rounded-3xl p-6 lg:p-8 max-w-xl mx-auto flex flex-col items-center">
-            <h2 className="text-xl font-semibold">Ready to start?</h2>
-            <p className="mt-2 text-sm text-[color:var(--app-muted)]">
-              Sign in to unlock your personal chain library.
-            </p>
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <SignInButton mode="modal">
-                <Button
-                  type="button"
-                  className="h-auto rounded-full px-4 py-2 text-xs font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition"
-                >
-                  Sign in
-                </Button>
-              </SignInButton>
-              <span className="text-xs text-[color:var(--app-faint)]">
-                New here? Sign up takes seconds.
-              </span>
-            </div>
-          </section>
-        </main>
-      </div>
-    </div>
-  );
-}
-
-function SignedInApp() {
-  const { user, isLoaded: clerkLoaded } = useUser();
-  const upsertUser = useMutation(api.users.upsertCurrentUser);
-  const [isSynced, setIsSynced] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const userId = user?.id;
-
-  useEffect(() => {
-    if (!clerkLoaded || !user) return;
-    let cancelled = false;
-    setIsSynced(false);
-    setSyncError(null);
-
-    const name = user.fullName ?? user.username ?? undefined;
-    const email = user.primaryEmailAddress?.emailAddress ?? undefined;
-    const imageUrl = user.imageUrl ?? undefined;
-
-    void upsertUser({ clerkUserId: user.id, name, email, imageUrl })
-      .then(() => {
-        if (!cancelled) setIsSynced(true);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        console.error("Error syncing user profile:", error);
-        setSyncError("We couldn't sync your profile. Please try again.");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [clerkLoaded, userId, upsertUser]);
-
-  if (syncError) {
-    return (
-      <div className="min-h-screen px-6 py-10" style={APP_SHELL_STYLE}>
-        <div className="mx-auto max-w-3xl app-anim-in">
-          <div className="app-card rounded-3xl p-6 lg:p-8 text-center">
-            <h1 className="text-lg font-semibold">Sync error</h1>
-            <p className="mt-2 text-sm text-[color:var(--app-muted)]">
-              {syncError}
-            </p>
-            <Button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="mt-5 h-auto rounded-full px-4 py-2 text-xs font-semibold bg-white/10 hover:bg-white/20 transition"
-            >
-              Retry
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!clerkLoaded || !isSynced) {
-    return (
-      <AuthLoadingView
-        title="Setting up your workspace"
-        subtitle="Syncing your profile so your chains stay private."
-      />
-    );
-  }
-
-  return <ImageEditorApp />;
-}
 
 function App() {
   const { isLoaded, isSignedIn: clerkSignedIn } = useUser();
@@ -230,7 +88,11 @@ function App() {
     return <SignedOutView />;
   }
 
-  return <SignedInApp />;
+  return (
+    <SignedInGate>
+      <ImageEditorApp />
+    </SignedInGate>
+  );
 }
 
 function ImageEditorApp() {
@@ -309,7 +171,6 @@ function ImageEditorApp() {
 
   const [isUploadingReference, setIsUploadingReference] = useState(false);
   const referenceFileInputRef = useRef<HTMLInputElement>(null);
-  type ReferenceTool = "dress_me" | "change_hair";
   const [referenceTool, setReferenceTool] = useState<ReferenceTool>("dress_me");
   const [batchReferenceTool, setBatchReferenceTool] = useState<
     ReferenceTool | null
@@ -431,42 +292,6 @@ function ImageEditorApp() {
   const originalImage =
     images.find((img) => img.stepNumber === 0) ?? currentImage;
   const canCompareWithOriginal = originalImage._id !== currentImage._id;
-
-  const renderViewerImage = (
-    image: ImageWithUrl,
-    opts?: {
-      showOriginalBadge?: boolean;
-      label?: string;
-      imageClassName?: string;
-    },
-  ) => {
-    return (
-      <div className="relative rounded-xl border border-white/10 bg-black/20 overflow-hidden">
-        <img
-          src={getImageUrl(image.url ?? "", image.createdAt)}
-          alt={
-            opts?.showOriginalBadge
-              ? `Original (Step ${image.stepNumber})`
-              : `Step ${image.stepNumber}`
-          }
-          className={
-            opts?.imageClassName ??
-            "w-full h-auto max-h-[52vh] lg:max-h-[56vh] object-contain"
-          }
-        />
-        {(opts?.showOriginalBadge ?? false) && (
-          <span className="absolute left-2 top-2 app-badge rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 bg-black/60 border border-white/15 backdrop-blur">
-            ORIGINAL
-          </span>
-        )}
-        {opts?.label && (
-          <span className="absolute right-2 bottom-2 app-badge rounded-full px-2 py-0.5 text-[10px] text-[color:var(--app-muted)] bg-black/60 border border-white/10 backdrop-blur">
-            {opts.label}
-          </span>
-        )}
-      </div>
-    );
-  };
 
   const latestImage = getLatestImage(images);
   const latestStepNumber = latestImage?.stepNumber ?? 0;
@@ -1005,6 +830,11 @@ function ImageEditorApp() {
     }
     return a.createdAt - b.createdAt;
   });
+  const clearBatch = () => {
+    setPendingPrompts([]);
+    setBatchReferenceStorageId(null);
+    setBatchReferenceTool(null);
+  };
 
   return (
     <div
@@ -1064,641 +894,68 @@ function ImageEditorApp() {
         <main className="mt-6 grid gap-4 lg:gap-6 lg:grid-cols-[minmax(0,1fr)_420px] items-start">
           {/* Left column: Image + History (on large screens) */}
           <div className="space-y-4 lg:space-y-6">
-            {/* Main image card */}
-            <section className="app-card rounded-3xl p-3 lg:p-5">
-              {/* Mobile: History button - shown only on mobile */}
-              <div className="flex flex-row-reverse pb-2">
-                <div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => setIsHistoryModalOpen(true)}
-                    variant="secondary"
-                    className="lg:hidden w-full h-auto rounded-2xl px-3 py-2 text-xs font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer"
-                  >
-                    History ({images.length} steps)
-                  </Button>
-                </div>
-              </div>
-              <div className="relative rounded-2xl border border-white/10 bg-black/20 p-2 lg:p-3 overflow-hidden">
-                <div className="absolute right-2 top-2 z-20">
-                  <div className="flex items-center gap-1 rounded-full border border-white/15 bg-black/60 backdrop-blur px-1 py-1">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setImageViewerMode("current");
-                      }}
-                      aria-pressed={imageViewerMode === "current"}
-                      title="Only show current photo"
-                      className={`rounded-full px-2 py-1 text-[10px] font-semibold transition ${
-                        imageViewerMode === "current"
-                          ? "bg-white/15 text-white"
-                          : "text-[color:var(--app-muted)] hover:bg-white/10"
-                      }`}
-                    >
-                      Current
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setImageViewerMode("sideBySide");
-                      }}
-                      aria-pressed={imageViewerMode === "sideBySide"}
-                      title="Side by side: original + current"
-                      className={`rounded-full px-2 py-1 text-[10px] font-semibold transition ${
-                        imageViewerMode === "sideBySide"
-                          ? "bg-white/15 text-white"
-                          : "text-[color:var(--app-muted)] hover:bg-white/10"
-                      }`}
-                    >
-                      Side
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setImageViewerMode("alternate");
-                      }}
-                      aria-pressed={imageViewerMode === "alternate"}
-                      title="Click to alternate: original <-> current"
-                      className={`rounded-full px-2 py-1 text-[10px] font-semibold transition ${
-                        imageViewerMode === "alternate"
-                          ? "bg-white/15 text-white"
-                          : "text-[color:var(--app-muted)] hover:bg-white/10"
-                      }`}
-                    >
-                      Alternate
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setImageViewerMode("history");
-                      }}
-                      aria-pressed={imageViewerMode === "history"}
-                      title="Show full image history"
-                      className={`rounded-full px-2 py-1 text-[10px] font-semibold transition ${
-                        imageViewerMode === "history"
-                          ? "bg-white/15 text-white"
-                          : "text-[color:var(--app-muted)] hover:bg-white/10"
-                      }`}
-                    >
-                      History
-                    </button>
-                  </div>
-                </div>
+            <MainImageSection
+              imagesCount={images.length}
+              currentChainId={currentChainId}
+              currentImage={currentImage}
+              originalImage={originalImage}
+              historyImages={historyImages}
+              selectedHistoryId={selectedHistoryId}
+              latestStepNumber={latestStepNumber}
+              currentImageSrc={currentImageSrc}
+              imageViewerMode={imageViewerMode}
+              setImageViewerMode={setImageViewerMode}
+              alternateShowingOriginal={alternateShowingOriginal}
+              setAlternateShowingOriginal={setAlternateShowingOriginal}
+              canCompareWithOriginal={canCompareWithOriginal}
+              controlsDisabled={controlsDisabled}
+              isGenerating={isGenerating}
+              activePrompt={activePrompt}
+              copyState={copyState}
+              downloadState={downloadState}
+              imageActionMessage={imageActionMessage}
+              onOpenHistoryModal={() => setIsHistoryModalOpen(true)}
+              onSelectImage={setSelectedImageId}
+              onCopyCurrentImage={handleCopyCurrentImage}
+              onDownloadCurrentImage={handleDownloadCurrentImage}
+              onShareLink={handleShareLink}
+            />
 
-                {imageViewerMode === "current" &&
-                  renderViewerImage(currentImage, {
-                    showOriginalBadge: currentImage.stepNumber === 0,
-                    label: "Selected",
-                  })}
-
-                {imageViewerMode === "sideBySide" && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 lg:gap-3">
-                    {renderViewerImage(originalImage, {
-                      showOriginalBadge: true,
-                      label: "Original",
-                      imageClassName:
-                        "w-full h-auto max-h-[26vh] sm:max-h-[52vh] lg:max-h-[56vh] object-contain",
-                    })}
-                    {renderViewerImage(currentImage, {
-                      showOriginalBadge: currentImage.stepNumber === 0,
-                      label: "Selected",
-                      imageClassName:
-                        "w-full h-auto max-h-[26vh] sm:max-h-[52vh] lg:max-h-[56vh] object-contain",
-                    })}
-                  </div>
-                )}
-
-                {imageViewerMode === "alternate" && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!canCompareWithOriginal) return;
-                      setAlternateShowingOriginal((prev) => !prev);
-                    }}
-                    className="relative block w-full text-left cursor-pointer"
-                    disabled={!canCompareWithOriginal}
-                    title={
-                      canCompareWithOriginal
-                        ? "Click to alternate"
-                        : "No alternate view available"
-                    }
-                  >
-                    {renderViewerImage(
-                      alternateShowingOriginal ? originalImage : currentImage,
-                      {
-                        showOriginalBadge:
-                          alternateShowingOriginal ||
-                          currentImage.stepNumber === 0,
-                        label: alternateShowingOriginal
-                          ? "Original"
-                          : "Selected",
-                      },
-                    )}
-                    {canCompareWithOriginal && (
-                      <span className="absolute left-3 bottom-3 z-10 app-badge rounded-full px-2 py-0.5 text-[10px] text-[color:var(--app-muted)] bg-black/60 border border-white/10 backdrop-blur">
-                        Click to alternate
-                      </span>
-                    )}
-                  </button>
-                )}
-
-                {imageViewerMode === "history" && (
-                  <Carousel
-                    opts={{ align: "start" }}
-                    className="h-[52vh] lg:h-[56vh] pt-10"
-                  >
-                    <CarouselContent className="h-full -ml-0">
-                      {historyImages.map((image) => {
-                        const isSelected = image._id === selectedHistoryId;
-
-                        return (
-                          <CarouselItem key={image._id} className="h-full pl-0">
-                            <TooltipProvider delayDuration={0}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button
-                                    type="button"
-                                    disabled={controlsDisabled}
-                                    onClick={() => {
-                                      if (controlsDisabled) return;
-                                      setSelectedImageId(image._id);
-                                    }}
-                                    className={`group relative grid h-full w-full place-items-center rounded-xl border bg-black/20 overflow-hidden text-left transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
-                                      isSelected
-                                        ? "border-teal-300/70 shadow-[0_0_0_2px_rgba(45,212,191,0.18)]"
-                                        : "border-white/10 hover:border-white/25"
-                                    }`}
-                                  >
-                                    <img
-                                      src={getImageUrl(
-                                        image.url ?? "",
-                                        image.createdAt,
-                                      )}
-                                      alt={`Step ${image.stepNumber}`}
-                                      className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.01]"
-                                    />
-                                    {image.stepNumber === 0 && (
-                                      <span className="absolute left-2 top-2 app-badge rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 bg-black/60 border border-white/15 backdrop-blur">
-                                        ORIGINAL
-                                      </span>
-                                    )}
-                                    <span className="absolute right-2 bottom-2 app-badge rounded-full px-2 py-0.5 text-[10px] text-[color:var(--app-muted)] bg-black/60 border border-white/10 backdrop-blur">
-                                      {isSelected
-                                        ? `Selected step ${image.stepNumber}`
-                                        : `Step ${image.stepNumber}`}
-                                    </span>
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-[320px]">
-                                  <p className="text-left leading-relaxed break-words whitespace-pre-wrap">
-                                    {getTooltipText(image)}
-                                  </p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </CarouselItem>
-                        );
-                      })}
-                    </CarouselContent>
-                    <CarouselPrevious className="left-2 z-10" />
-                    <CarouselNext className="right-2 z-10" />
-                  </Carousel>
-                )}
-
-                {isGenerating && (
-                  <div className="absolute inset-0 z-10 grid place-items-center bg-black/45">
-                    <div className="app-card-2 rounded-2xl px-4 py-3 lg:px-5 lg:py-4 max-w-[90%]">
-                      <div className="flex items-center gap-2 lg:gap-3">
-                        <div className="h-4 w-4 lg:h-5 lg:w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                        <div className="space-y-1">
-                          <p className="text-xs lg:text-sm font-semibold">
-                            Working...
-                          </p>
-                          <p className="text-[10px] lg:text-xs text-[color:var(--app-muted)] hidden sm:block">
-                            Controls locked until the new image arrives.
-                          </p>
-                        </div>
-                      </div>
-                      {activePrompt && (
-                        <p className="mt-3 text-[10px] lg:text-xs text-[color:var(--app-muted)] break-words whitespace-pre-wrap">
-                          {activePrompt}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-2 lg:mt-3 flex flex-wrap items-center justify-end gap-2">
-                {imageActionMessage && (
-                  <span className="text-[10px] lg:text-xs text-[color:var(--app-faint)]">
-                    {imageActionMessage}
-                  </span>
-                )}
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    onClick={handleCopyCurrentImage}
-                    disabled={!currentImageSrc || copyState === "copying"}
-                    variant="secondary"
-                    className="h-auto rounded-full px-3 py-1.5 lg:px-4 lg:py-2 text-xs font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-                    title="Copy current image to clipboard"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    {copyState === "copied" ? "Copied" : "Copy"}
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={handleDownloadCurrentImage}
-                    disabled={
-                      !currentImageSrc || downloadState === "downloading"
-                    }
-                    variant="secondary"
-                    className="h-auto rounded-full px-3 py-1.5 lg:px-4 lg:py-2 text-xs font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-                    title="Download current image"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    {downloadState === "done" ? "Downloaded" : "Download"}
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={handleShareLink}
-                    disabled={!currentChainId}
-                    variant="secondary"
-                    className="h-auto rounded-full px-3 py-1.5 lg:px-4 lg:py-2 text-xs font-semibold border border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-                    title="Copy a link anyone can edit (uses their credits)"
-                  >
-                    <Link2 className="h-3.5 w-3.5" />
-                    Share
-                  </Button>
-                </div>
-              </div>
-
-              {/* Status badges - simplified on mobile */}
-              <div className="mt-2 lg:mt-4 flex flex-row items-center justify-between gap-1 lg:gap-2">
-                <div className="flex items-center gap-1 lg:gap-2 flex-wrap">
-                  <div className="flex items-center gap-1 lg:gap-2 flex-wrap">
-                    <span className="app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs text-[color:var(--app-muted)]">
-                      Step {currentImage.stepNumber}/{latestStepNumber}
-                    </span>
-                    <span className="app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs text-[color:var(--app-muted)]">
-                      Z:{currentImage.zoomPercent ?? 100}%
-                    </span>
-                    <span className="app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs text-[color:var(--app-muted)]">
-                      B:{currentImage.brightnessPercent ?? 100}%
-                    </span>
-                  </div>
-                </div>
-                <div className="hidden lg:block text-xs text-[color:var(--app-faint)] break-words max-w-[64ch] whitespace-pre-wrap">
-                  {currentImage.prompt
-                    ? `"${currentImage.prompt}"`
-                    : "No prompt for this step"}
-                </div>
-              </div>
-
-              {/* Prompt display on mobile only */}
-              <div className="lg:hidden mt-2 text-[10px] text-[color:var(--app-faint)] break-words whitespace-pre-wrap">
-                {currentImage.prompt
-                  ? `"${currentImage.prompt}"`
-                  : "No prompt for this step"}
-              </div>
-            </section>
-
-            {/* Mobile: Compact tools section - shown only on small screens */}
-            <section className="lg:hidden app-card rounded-2xl p-3">
-              <div className="flex items-center justify-between gap-2 pb-3 border-b border-white/10">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-[color:var(--app-muted)]">
-                    Oneshot
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (controlsDisabled) return;
-                      setIsBatchMode((prev) => !prev);
-                      setPendingPrompts([]);
-                      setBatchReferenceStorageId(null);
-                      setBatchReferenceTool(null);
-                    }}
-                    disabled={controlsDisabled}
-                    className={`relative h-5 w-9 rounded-full border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isBatchMode
-                        ? "bg-teal-400/80 border-teal-200/60"
-                        : "bg-white/10 border-white/20"
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
-                        isBatchMode ? "left-4" : "left-0.5"
-                      }`}
-                    />
-                  </button>
-                  <span className="text-[10px] text-[color:var(--app-muted)]">
-                    Batch
-                  </span>
-                </div>
-                <Button
-                  type="button"
-                  onClick={handleBatchGenerate}
-                  disabled={
-                    controlsDisabled ||
-                    !isBatchMode ||
-                    pendingPrompts.length === 0
-                  }
-                  variant="ghost"
-                  className="h-auto rounded-full px-3 py-1 text-[10px] font-semibold bg-gradient-to-r from-teal-400/90 to-lime-300/90 text-black hover:from-teal-300 hover:to-lime-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Generate
-                </Button>
-              </div>
-              <div className="mt-3 pb-3 border-b border-white/10">
-                <label className="text-[10px] font-medium text-gray-300 block mb-2">
-                  Model
-                </label>
-                <Select value={selectedModel} onValueChange={setSelectedModel}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gemini-2.5-flash-image">
-                      Gemini 2.5 Flash
-                    </SelectItem>
-                    <SelectItem value="gemini-3-pro-image-preview">
-                      Gemini 3 Pro Preview
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="mt-3 space-y-3">
-                {/* Compact sliders */}
-                <div className="space-y-2">
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-medium text-gray-300">
-                        Zoom
-                      </span>
-                      <span className="text-[10px] text-gray-400 tabular-nums">
-                        {zoomLevel}%
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={200}
-                      value={zoomLevel}
-                      onChange={(e) => setZoomLevel(Number(e.target.value))}
-                      onPointerUp={() => {
-                        const base =
-                          getSelectedImage(images, selectedImageId)
-                            ?.zoomPercent ?? 100;
-                        if (zoomLevel !== base) handleZoomRelease(zoomLevel);
-                      }}
-                      disabled={controlsDisabled}
-                      style={{
-                        background: `linear-gradient(90deg, rgba(45,212,191,0.95) 0%, rgba(163,230,53,0.90) ${(zoomLevel / 200) * 100}%, rgba(255,255,255,0.14) ${(zoomLevel / 200) * 100}%, rgba(255,255,255,0.14) 100%)`,
-                      }}
-                      className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-medium text-gray-300">
-                        Brightness
-                      </span>
-                      <span className="text-[10px] text-gray-400 tabular-nums">
-                        {brightnessLevel}%
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={200}
-                      value={brightnessLevel}
-                      onChange={(e) =>
-                        setBrightnessLevel(Number(e.target.value))
-                      }
-                      onPointerUp={() => {
-                        const base =
-                          getSelectedImage(images, selectedImageId)
-                            ?.brightnessPercent ?? 100;
-                        if (brightnessLevel !== base)
-                          handleBrightnessRelease(brightnessLevel);
-                      }}
-                      disabled={controlsDisabled}
-                      style={{
-                        background: `linear-gradient(90deg, rgba(45,212,191,0.95) 0%, rgba(163,230,53,0.90) ${(brightnessLevel / 200) * 100}%, rgba(255,255,255,0.14) ${(brightnessLevel / 200) * 100}%, rgba(255,255,255,0.14) 100%)`,
-                      }}
-                      className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-transparent disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
-                    />
-                  </div>
-                </div>
-                {/* Compact quick tools - full width buttons */}
-                <div className="space-y-2">
-                  <p className="text-[10px] font-medium text-gray-300">
-                    Quick tools
-                  </p>
-                  <div className="grid grid-cols-3 gap-1">
-                    {/* Row 1 */}
-                    <Button
-                      type="button"
-                      onClick={handleAlignLeftClick}
-                      disabled={controlsDisabled}
-                      variant="ghost"
-                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-sky-400/90 to-cyan-300/90 hover:from-sky-300 hover:to-cyan-200"
-                    >
-                      <AlignLeft className="w-3 h-3" />
-                      Left
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={handleCenterClick}
-                      disabled={controlsDisabled}
-                      variant="ghost"
-                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-teal-400/90 to-lime-300/90 hover:from-teal-300 hover:to-lime-200"
-                    >
-                      <Focus className="w-3 h-3" />
-                      Center
-                    </Button>
-                    {/* Row 2 */}
-                    <Button
-                      type="button"
-                      onClick={handleAlignRightClick}
-                      disabled={controlsDisabled}
-                      variant="ghost"
-                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-rose-400/90 to-amber-300/90 hover:from-rose-300 hover:to-amber-200"
-                    >
-                      <AlignRight className="w-3 h-3" />
-                      Right
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={handleMakeOlder}
-                      disabled={controlsDisabled}
-                      variant="ghost"
-                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-amber-500/90 to-orange-400/90 hover:from-amber-400 hover:to-orange-300"
-                    >
-                      <Sparkles className="w-3 h-3" />
-                      Old
-                    </Button>
-                    {/* Row 3 */}
-                    <Button
-                      type="button"
-                      onClick={handleMakeYoung}
-                      disabled={controlsDisabled}
-                      variant="ghost"
-                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-pink-400/90 to-rose-300/90 hover:from-pink-300 hover:to-rose-200"
-                    >
-                      <Baby className="w-3 h-3" />
-                      Young
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={handleDuplicateObject}
-                      disabled={controlsDisabled}
-                      variant="ghost"
-                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-emerald-500/90 to-teal-400/90 hover:from-emerald-400 hover:to-teal-300"
-                    >
-                      <Copy className="w-3 h-3" />
-                      Duplicate
-                    </Button>
-                    {/* Row 4 */}
-                    <Button
-                      type="button"
-                      onClick={handleDeleteBackground}
-                      disabled={controlsDisabled}
-                      variant="ghost"
-                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-red-500/90 to-pink-400/90 hover:from-red-400 hover:to-pink-300"
-                    >
-                      <Eraser className="w-3 h-3" />
-                      Remove BG
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={handleAddBackground}
-                      disabled={controlsDisabled}
-                      variant="ghost"
-                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-indigo-500/90 to-purple-400/90 hover:from-indigo-400 hover:to-purple-300"
-                    >
-                      <ImagePlus className="w-3 h-3" />
-                      Add BG
-                    </Button>
-                    {/* Row 5 */}
-                    <Button
-                      type="button"
-                      onClick={handleRemoveObject}
-                      disabled={controlsDisabled}
-                      variant="ghost"
-                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-slate-500/90 to-gray-400/90 hover:from-slate-400 hover:to-gray-300"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      Clean Up
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={handleMakeSquare}
-                      disabled={controlsDisabled}
-                      variant="ghost"
-                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-violet-500/90 to-purple-400/90 hover:from-violet-400 hover:to-purple-300"
-                    >
-                      <Square className="w-3 h-3" />
-                      Square
-                    </Button>
-                    {/* Row 6 */}
-                    <Button
-                      type="button"
-                      onClick={handleMakeCircular}
-                      disabled={controlsDisabled}
-                      variant="ghost"
-                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-fuchsia-500/90 to-pink-400/90 hover:from-fuchsia-400 hover:to-pink-300"
-                    >
-                      <Circle className="w-3 h-3" />
-                      Circular
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={handlePrettify}
-                      disabled={controlsDisabled}
-                      variant="ghost"
-                      className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-400/90 to-blue-300/90 hover:from-cyan-300 hover:to-blue-200"
-                    >
-                      <Wand2 className="w-3 h-3" />
-                      Prettify
-                    </Button>
-                    <div className="col-span-3 grid grid-cols-2 gap-1.5">
-                      <Button
-                        type="button"
-                        onClick={handleDressMeClick}
-                        disabled={controlsDisabled}
-                        variant="ghost"
-                        className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-lime-300/95 to-amber-300/95 hover:from-lime-200 hover:to-amber-200"
-                        title="Upload a clothing image reference"
-                      >
-                        <Shirt className="w-3 h-3" />
-                        Dress me
-                        {isBatchMode &&
-                        batchReferenceStorageId &&
-                        batchReferenceTool === "dress_me"
-                          ? " (ref ready)"
-                          : ""}
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={handleChangeHairClick}
-                        disabled={controlsDisabled}
-                        variant="ghost"
-                        className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-black transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed bg-gradient-to-r from-cyan-300/95 to-fuchsia-300/95 hover:from-cyan-200 hover:to-fuchsia-200"
-                        title="Upload a hairstyle image reference"
-                      >
-                        <Scissors className="w-3 h-3" />
-                        Change hair
-                        {isBatchMode &&
-                        batchReferenceStorageId &&
-                        batchReferenceTool === "change_hair"
-                          ? " (ref ready)"
-                          : ""}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3">
-                <textarea
-                  value={manualPrompt}
-                  onChange={(e) => setManualPrompt(e.target.value)}
-                  placeholder="Describe an edit"
-                  rows={3}
-                  disabled={controlsDisabled}
-                  className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-[10px] text-white/90 placeholder:text-white/40 focus:outline-none focus:ring-0 app-focus disabled:opacity-50"
-                />
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="text-[10px] text-[color:var(--app-faint)]">
-                    {isBatchMode
-                      ? `Queued ${pendingPrompts.length}`
-                      : "Runs immediately"}
-                  </span>
-                  <Button
-                    type="button"
-                    onClick={handleManualSubmit}
-                    disabled={
-                      controlsDisabled || manualPrompt.trim().length === 0
-                    }
-                    variant="ghost"
-                    className="h-auto rounded-full px-3 py-1 text-[10px] font-semibold bg-gradient-to-r from-sky-400/90 to-blue-300/90 text-black hover:from-sky-300 hover:to-blue-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isBatchMode ? "Add prompt" : "Generate"}
-                  </Button>
-                </div>
-              </div>
-            </section>
+            <MobileToolsPanel
+              controlsDisabled={controlsDisabled}
+              isBatchMode={isBatchMode}
+              pendingPromptsCount={pendingPrompts.length}
+              selectedModel={selectedModel}
+              setSelectedModel={setSelectedModel}
+              batchReferenceStorageId={batchReferenceStorageId}
+              batchReferenceTool={batchReferenceTool}
+              zoomLevel={zoomLevel}
+              brightnessLevel={brightnessLevel}
+              setZoomLevel={setZoomLevel}
+              setBrightnessLevel={setBrightnessLevel}
+              onZoomRelease={handleZoomRelease}
+              onBrightnessRelease={handleBrightnessRelease}
+              setIsBatchMode={setIsBatchMode}
+              clearBatch={clearBatch}
+              onBatchGenerate={handleBatchGenerate}
+              manualPrompt={manualPrompt}
+              setManualPrompt={setManualPrompt}
+              onManualSubmit={handleManualSubmit}
+              onAlignLeft={handleAlignLeftClick}
+              onCenter={handleCenterClick}
+              onAlignRight={handleAlignRightClick}
+              onMakeOlder={handleMakeOlder}
+              onMakeYoung={handleMakeYoung}
+              onDuplicateObject={handleDuplicateObject}
+              onDeleteBackground={handleDeleteBackground}
+              onAddBackground={handleAddBackground}
+              onRemoveObject={handleRemoveObject}
+              onMakeSquare={handleMakeSquare}
+              onMakeCircular={handleMakeCircular}
+              onPrettify={handlePrettify}
+              onDressMe={handleDressMeClick}
+              onChangeHair={handleChangeHairClick}
+            />
 
             {/* History timeline - hidden on mobile, shown on desktop */}
             <section className="hidden lg:block app-card rounded-3xl p-5">
