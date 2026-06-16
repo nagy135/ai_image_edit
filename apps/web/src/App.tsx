@@ -992,6 +992,12 @@ function ImageEditorApp() {
       ];
   const historyColumns = Math.max(1, historyLayout.maxDepth);
   const selectedHistoryId = selectedImageId ?? currentImage._id;
+  const historyImages = [...images].sort((a, b) => {
+    if (a.stepNumber !== b.stepNumber) {
+      return a.stepNumber - b.stepNumber;
+    }
+    return a.createdAt - b.createdAt;
+  });
 
   return (
     <div
@@ -1121,6 +1127,23 @@ function ImageEditorApp() {
                     >
                       Alternate
                     </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setImageViewerMode("history");
+                      }}
+                      aria-pressed={imageViewerMode === "history"}
+                      title="Show full image history"
+                      className={`rounded-full px-2 py-1 text-[10px] font-semibold transition ${
+                        imageViewerMode === "history"
+                          ? "bg-white/15 text-white"
+                          : "text-[color:var(--app-muted)] hover:bg-white/10"
+                      }`}
+                    >
+                      History
+                    </button>
                   </div>
                 </div>
 
@@ -1179,6 +1202,60 @@ function ImageEditorApp() {
                       </span>
                     )}
                   </button>
+                )}
+
+                {imageViewerMode === "history" && (
+                  <div className="max-h-[52vh] lg:max-h-[56vh] overflow-y-auto pr-1 space-y-3 pt-10">
+                    {historyImages.map((image) => {
+                      const isSelected = image._id === selectedHistoryId;
+
+                      return (
+                        <TooltipProvider key={image._id} delayDuration={0}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                disabled={controlsDisabled}
+                                onClick={() => {
+                                  if (controlsDisabled) return;
+                                  setSelectedImageId(image._id);
+                                }}
+                                className={`group relative block w-full rounded-xl border bg-black/20 overflow-hidden text-left transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                                  isSelected
+                                    ? "border-teal-300/70 shadow-[0_0_0_2px_rgba(45,212,191,0.18)]"
+                                    : "border-white/10 hover:border-white/25"
+                                }`}
+                              >
+                                <img
+                                  src={getImageUrl(
+                                    image.url ?? "",
+                                    image.createdAt,
+                                  )}
+                                  alt={`Step ${image.stepNumber}`}
+                                  className="w-full h-auto object-contain transition duration-300 group-hover:scale-[1.01]"
+                                />
+                                {image.stepNumber === 0 && (
+                                  <span className="absolute left-2 top-2 app-badge rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 bg-black/60 border border-white/15 backdrop-blur">
+                                    ORIGINAL
+                                  </span>
+                                )}
+                                <span className="absolute right-2 bottom-2 app-badge rounded-full px-2 py-0.5 text-[10px] text-[color:var(--app-muted)] bg-black/60 border border-white/10 backdrop-blur">
+                                  {isSelected
+                                    ? `Selected step ${image.stepNumber}`
+                                    : `Step ${image.stepNumber}`}
+                                </span>
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-[320px]">
+                              <p className="text-left leading-relaxed break-words whitespace-pre-wrap">
+                                {getTooltipText(image)}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      );
+                    })}
+                  </div>
                 )}
 
                 {isGenerating && (

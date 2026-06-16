@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type ImageViewerMode = "current" | "sideBySide" | "alternate";
+export type ImageViewerMode = "current" | "sideBySide" | "alternate" | "history";
 
 type ImageViewerState = {
   mode: ImageViewerMode;
