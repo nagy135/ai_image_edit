@@ -201,15 +201,16 @@ function HistoryBranchStrip({
   };
 
   return (
-    <div
-      ref={scrollRef}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={stopDragging}
-      onPointerCancel={stopDragging}
-      className="h-[52vh] min-h-[260px] lg:h-[56vh] overflow-x-auto overflow-y-hidden pt-10 pb-2 select-none cursor-grab active:cursor-grabbing [touch-action:pan-y]"
-    >
-      <div className="flex h-full min-w-full w-max items-stretch justify-end gap-2 lg:gap-3">
+    <div className="max-w-full min-w-0 overflow-hidden">
+      <div
+        ref={scrollRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={stopDragging}
+        onPointerCancel={stopDragging}
+        className="h-[34vh] min-h-[160px] max-h-[280px] w-full max-w-full overflow-x-auto overflow-y-hidden pt-8 pb-2 select-none cursor-grab active:cursor-grabbing [touch-action:pan-y] sm:h-[42vh] sm:min-h-[220px] sm:max-h-none lg:h-[56vh] lg:min-h-[260px] lg:pt-10"
+      >
+        <div className="inline-flex h-full min-w-full items-stretch justify-end gap-2 lg:gap-3">
         {historyPathImages.map((image, index) => {
           const isSelected = image._id === selectedHistoryId;
 
@@ -234,7 +235,7 @@ function HistoryBranchStrip({
                         if (controlsDisabled) return;
                         onSelectImage(image._id);
                       }}
-                      className={`group relative grid h-full w-[min(72vw,340px)] shrink-0 place-items-center rounded-xl border bg-black/20 overflow-hidden text-left transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                      className={`group relative grid h-full w-[min(54vw,210px)] shrink-0 place-items-center rounded-xl border bg-black/20 overflow-hidden text-left transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed sm:w-[min(48vw,260px)] lg:w-[min(72vw,340px)] ${
                         isSelected
                           ? "border-teal-300/70 shadow-[0_0_0_2px_rgba(45,212,191,0.18)]"
                           : "border-white/10 hover:border-white/25"
@@ -270,6 +271,7 @@ function HistoryBranchStrip({
         })}
       </div>
     </div>
+    </div>
   );
 }
 
@@ -300,7 +302,7 @@ export function MainImageSection({
   onShareLink,
 }: MainImageSectionProps) {
   return (
-    <section className="app-card rounded-3xl p-3 lg:p-5">
+    <section className="app-card min-w-0 max-w-full rounded-3xl p-3 lg:p-5">
       <div className="flex flex-row-reverse pb-2">
         <div>
           <Button
@@ -315,7 +317,7 @@ export function MainImageSection({
         </div>
       </div>
 
-      <div className="relative rounded-2xl border border-white/10 bg-black/20 p-2 lg:p-3 overflow-hidden">
+      <div className="relative min-w-0 max-w-full rounded-2xl border border-white/10 bg-black/20 p-2 lg:p-3 overflow-hidden">
         <div className="absolute right-2 top-2 z-20">
           <div className="flex items-center gap-1 rounded-full border border-white/15 bg-black/60 backdrop-blur px-1 py-1">
             <ViewerModeButton

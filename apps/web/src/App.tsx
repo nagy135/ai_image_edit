@@ -891,9 +891,9 @@ function ImageEditorApp() {
           </div>
         </header>
 
-        <main className="mt-6 grid gap-4 lg:gap-6 lg:grid-cols-[minmax(0,1fr)_420px] items-start">
+        <main className="mt-6 grid min-w-0 gap-4 lg:gap-6 lg:grid-cols-[minmax(0,1fr)_420px] items-start">
           {/* Left column: Image + History (on large screens) */}
-          <div className="space-y-4 lg:space-y-6">
+          <div className="min-w-0 space-y-4 lg:space-y-6">
             <MainImageSection
               imagesCount={images.length}
               currentChainId={currentChainId}
