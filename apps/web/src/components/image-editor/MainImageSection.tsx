@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type PointerEvent } from "react";
 import { Copy, Download, Link2 } from "lucide-react";
 
 import { Button } from "../ui/button";
@@ -127,6 +127,14 @@ function HistoryBranchStrip({
   onSelectImage: (imageId: Id<"images">) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef({
+    isDragging: false,
+    hasMoved: false,
+    pointerId: -1,
+    scrollLeft: 0,
+    startX: 0,
+  });
+  const suppressClickRef = useRef(false);
 
   useEffect(() => {
     const scrollElement = scrollRef.current;
@@ -138,10 +146,68 @@ function HistoryBranchStrip({
     });
   }, [selectedHistoryId, historyPathImages.length]);
 
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) return;
+
+    dragStateRef.current = {
+      isDragging: true,
+      hasMoved: false,
+      pointerId: event.pointerId,
+      scrollLeft: scrollElement.scrollLeft,
+      startX: event.clientX,
+    };
+    suppressClickRef.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current;
+    const scrollElement = scrollRef.current;
+    if (
+      !dragState.isDragging ||
+      dragState.pointerId !== event.pointerId ||
+      !scrollElement
+    ) {
+      return;
+    }
+
+    const deltaX = event.clientX - dragState.startX;
+    if (Math.abs(deltaX) > 4) {
+      dragState.hasMoved = true;
+      suppressClickRef.current = true;
+      scrollElement.scrollLeft = dragState.scrollLeft - deltaX;
+      event.preventDefault();
+    }
+  };
+
+  const stopDragging = (event: PointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current;
+    if (!dragState.isDragging || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    dragState.isDragging = false;
+    dragState.pointerId = -1;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    window.setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 0);
+  };
+
   return (
     <div
       ref={scrollRef}
-      className="h-[52vh] min-h-[260px] lg:h-[56vh] overflow-x-auto overflow-y-hidden pt-10 pb-2"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={stopDragging}
+      onPointerCancel={stopDragging}
+      className="h-[52vh] min-h-[260px] lg:h-[56vh] overflow-x-auto overflow-y-hidden pt-10 pb-2 select-none cursor-grab active:cursor-grabbing [touch-action:pan-y]"
     >
       <div className="flex h-full min-w-full w-max items-stretch justify-end gap-2 lg:gap-3">
         {historyPathImages.map((image, index) => {
@@ -164,6 +230,7 @@ function HistoryBranchStrip({
                       type="button"
                       disabled={controlsDisabled}
                       onClick={() => {
+                        if (suppressClickRef.current) return;
                         if (controlsDisabled) return;
                         onSelectImage(image._id);
                       }}
@@ -176,6 +243,7 @@ function HistoryBranchStrip({
                       <img
                         src={getImageUrl(image.url ?? "", image.createdAt)}
                         alt={`Step ${image.stepNumber}`}
+                        draggable={false}
                         className="max-h-full max-w-full object-contain transition duration-300 group-hover:scale-[1.01]"
                       />
                       {image.stepNumber === 0 && (
