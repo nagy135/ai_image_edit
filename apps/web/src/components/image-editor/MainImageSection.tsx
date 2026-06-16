@@ -1,4 +1,4 @@
-import { useEffect, useRef, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { Copy, Download, Link2 } from "lucide-react";
 
 import { Button } from "../ui/button";
@@ -29,14 +29,12 @@ type MainImageSectionProps = {
   alternateShowingOriginal: boolean;
   setAlternateShowingOriginal: (updater: (value: boolean) => boolean) => void;
   canCompareWithOriginal: boolean;
-  controlsDisabled: boolean;
   isGenerating: boolean;
   activePrompt: string | null;
   copyState: ImageActionState;
   downloadState: DownloadActionState;
   imageActionMessage: string | null;
   onOpenHistoryModal: () => void;
-  onSelectImage: (imageId: Id<"images">) => void;
   onCopyCurrentImage: () => void;
   onDownloadCurrentImage: () => void;
   onShareLink: () => void;
@@ -118,15 +116,14 @@ function ViewerImage({
 function HistoryBranchStrip({
   historyPathImages,
   selectedHistoryId,
-  controlsDisabled,
-  onSelectImage,
 }: {
   historyPathImages: ImageWithUrl[];
   selectedHistoryId: Id<"images">;
-  controlsDisabled: boolean;
-  onSelectImage: (imageId: Id<"images">) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [openTooltipId, setOpenTooltipId] = useState<Id<"images"> | null>(
+    null,
+  );
   const dragStateRef = useRef({
     isDragging: false,
     hasMoved: false,
@@ -211,66 +208,73 @@ function HistoryBranchStrip({
         className="w-full max-w-full overflow-x-auto overflow-y-hidden pt-8 pb-2 select-none cursor-grab active:cursor-grabbing [touch-action:pan-y] lg:pt-10"
       >
         <div className="inline-flex min-w-full items-center justify-end gap-2 lg:gap-3">
-        {historyPathImages.map((image, index) => {
-          const isSelected = image._id === selectedHistoryId;
+          {historyPathImages.map((image, index) => {
+            const isSelected = image._id === selectedHistoryId;
 
-          return (
-            <div
-              key={image._id}
-              className="flex shrink-0 items-center gap-2 lg:gap-3"
-            >
-              {index > 0 && (
-                <div className="flex w-5 shrink-0 items-center justify-center text-[color:var(--app-faint)]">
-                  <span className="h-px w-full bg-white/15" />
-                </div>
-              )}
-              <TooltipProvider delayDuration={0}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      disabled={controlsDisabled}
-                      onClick={() => {
-                        if (suppressClickRef.current) return;
-                        if (controlsDisabled) return;
-                        onSelectImage(image._id);
-                      }}
-                      className={`group relative grid shrink-0 place-items-center rounded-xl border bg-black/20 p-1 text-left transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
-                        isSelected
-                          ? "border-teal-300/70 shadow-[0_0_0_2px_rgba(45,212,191,0.18)]"
-                          : "border-white/10 hover:border-white/25"
-                      }`}
-                    >
-                      <img
-                        src={getImageUrl(image.url ?? "", image.createdAt)}
-                        alt={`Step ${image.stepNumber}`}
-                        draggable={false}
-                        className="block h-auto max-h-[52vh] max-w-[min(54vw,210px)] object-contain sm:max-w-[min(48vw,260px)] lg:max-h-[56vh] lg:max-w-[min(72vw,340px)]"
-                      />
-                      {image.stepNumber === 0 && (
-                        <span className="absolute left-2 top-2 app-badge rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 bg-black/60 border border-white/15 backdrop-blur">
-                          ORIGINAL
+            return (
+              <div
+                key={image._id}
+                className="flex shrink-0 items-center gap-2 lg:gap-3"
+              >
+                {index > 0 && (
+                  <div className="flex w-5 shrink-0 items-center justify-center text-[color:var(--app-faint)]">
+                    <span className="h-px w-full bg-white/15" />
+                  </div>
+                )}
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip
+                    open={openTooltipId === image._id}
+                    onOpenChange={(open) =>
+                      setOpenTooltipId(open ? image._id : null)
+                    }
+                  >
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (suppressClickRef.current) {
+                            return;
+                          }
+                          setOpenTooltipId((current) =>
+                            current === image._id ? null : image._id,
+                          );
+                        }}
+                        className={`group relative grid shrink-0 place-items-center rounded-xl border bg-black/20 p-1 text-left transition cursor-pointer ${
+                          isSelected
+                            ? "border-teal-300/70 shadow-[0_0_0_2px_rgba(45,212,191,0.18)]"
+                            : "border-white/10 hover:border-white/25"
+                        }`}
+                      >
+                        <img
+                          src={getImageUrl(image.url ?? "", image.createdAt)}
+                          alt={`Step ${image.stepNumber}`}
+                          draggable={false}
+                          className="block h-auto max-h-[52vh] max-w-[min(54vw,210px)] object-contain sm:max-w-[min(48vw,260px)] lg:max-h-[56vh] lg:max-w-[min(72vw,340px)]"
+                        />
+                        {image.stepNumber === 0 && (
+                          <span className="absolute left-2 top-2 app-badge rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 bg-black/60 border border-white/15 backdrop-blur">
+                            ORIGINAL
+                          </span>
+                        )}
+                        <span className="absolute right-2 bottom-2 app-badge rounded-full px-2 py-0.5 text-[10px] text-[color:var(--app-muted)] bg-black/60 border border-white/10 backdrop-blur">
+                          {isSelected
+                            ? `Selected step ${image.stepNumber}`
+                            : `Step ${image.stepNumber}`}
                         </span>
-                      )}
-                      <span className="absolute right-2 bottom-2 app-badge rounded-full px-2 py-0.5 text-[10px] text-[color:var(--app-muted)] bg-black/60 border border-white/10 backdrop-blur">
-                        {isSelected
-                          ? `Selected step ${image.stepNumber}`
-                          : `Step ${image.stepNumber}`}
-                      </span>
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-[320px]">
-                    <p className="text-left leading-relaxed break-words whitespace-pre-wrap">
-                      {getTooltipText(image)}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          );
-        })}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[320px]">
+                      <p className="text-left leading-relaxed break-words whitespace-pre-wrap">
+                        {getTooltipText(image)}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
     </div>
   );
 }
@@ -289,14 +293,12 @@ export function MainImageSection({
   alternateShowingOriginal,
   setAlternateShowingOriginal,
   canCompareWithOriginal,
-  controlsDisabled,
   isGenerating,
   activePrompt,
   copyState,
   downloadState,
   imageActionMessage,
   onOpenHistoryModal,
-  onSelectImage,
   onCopyCurrentImage,
   onDownloadCurrentImage,
   onShareLink,
@@ -410,8 +412,6 @@ export function MainImageSection({
           <HistoryBranchStrip
             historyPathImages={historyPathImages}
             selectedHistoryId={selectedHistoryId}
-            controlsDisabled={controlsDisabled}
-            onSelectImage={onSelectImage}
           />
         )}
 

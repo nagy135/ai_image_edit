@@ -908,14 +908,12 @@ function ImageEditorApp() {
               alternateShowingOriginal={alternateShowingOriginal}
               setAlternateShowingOriginal={setAlternateShowingOriginal}
               canCompareWithOriginal={canCompareWithOriginal}
-              controlsDisabled={controlsDisabled}
               isGenerating={isGenerating}
               activePrompt={activePrompt}
               copyState={copyState}
               downloadState={downloadState}
               imageActionMessage={imageActionMessage}
               onOpenHistoryModal={() => setIsHistoryModalOpen(true)}
-              onSelectImage={handleSelectHistoryImage}
               onCopyCurrentImage={handleCopyCurrentImage}
               onDownloadCurrentImage={handleDownloadCurrentImage}
               onShareLink={handleShareLink}
