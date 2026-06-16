@@ -10,6 +10,13 @@ import {
   SelectValue,
 } from "./components/ui/select";
 import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "./components/ui/carousel";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -1205,57 +1212,66 @@ function ImageEditorApp() {
                 )}
 
                 {imageViewerMode === "history" && (
-                  <div className="max-h-[52vh] lg:max-h-[56vh] overflow-y-auto pr-1 space-y-3 pt-10">
-                    {historyImages.map((image) => {
-                      const isSelected = image._id === selectedHistoryId;
+                  <Carousel
+                    opts={{ align: "start" }}
+                    className="h-[52vh] lg:h-[56vh] pt-10"
+                  >
+                    <CarouselContent className="h-full -ml-0">
+                      {historyImages.map((image) => {
+                        const isSelected = image._id === selectedHistoryId;
 
-                      return (
-                        <TooltipProvider key={image._id} delayDuration={0}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                disabled={controlsDisabled}
-                                onClick={() => {
-                                  if (controlsDisabled) return;
-                                  setSelectedImageId(image._id);
-                                }}
-                                className={`group relative block w-full rounded-xl border bg-black/20 overflow-hidden text-left transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
-                                  isSelected
-                                    ? "border-teal-300/70 shadow-[0_0_0_2px_rgba(45,212,191,0.18)]"
-                                    : "border-white/10 hover:border-white/25"
-                                }`}
-                              >
-                                <img
-                                  src={getImageUrl(
-                                    image.url ?? "",
-                                    image.createdAt,
-                                  )}
-                                  alt={`Step ${image.stepNumber}`}
-                                  className="w-full h-auto object-contain transition duration-300 group-hover:scale-[1.01]"
-                                />
-                                {image.stepNumber === 0 && (
-                                  <span className="absolute left-2 top-2 app-badge rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 bg-black/60 border border-white/15 backdrop-blur">
-                                    ORIGINAL
-                                  </span>
-                                )}
-                                <span className="absolute right-2 bottom-2 app-badge rounded-full px-2 py-0.5 text-[10px] text-[color:var(--app-muted)] bg-black/60 border border-white/10 backdrop-blur">
-                                  {isSelected
-                                    ? `Selected step ${image.stepNumber}`
-                                    : `Step ${image.stepNumber}`}
-                                </span>
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-[320px]">
-                              <p className="text-left leading-relaxed break-words whitespace-pre-wrap">
-                                {getTooltipText(image)}
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      );
-                    })}
-                  </div>
+                        return (
+                          <CarouselItem key={image._id} className="h-full pl-0">
+                            <TooltipProvider delayDuration={0}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    disabled={controlsDisabled}
+                                    onClick={() => {
+                                      if (controlsDisabled) return;
+                                      setSelectedImageId(image._id);
+                                    }}
+                                    className={`group relative grid h-full w-full place-items-center rounded-xl border bg-black/20 overflow-hidden text-left transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                                      isSelected
+                                        ? "border-teal-300/70 shadow-[0_0_0_2px_rgba(45,212,191,0.18)]"
+                                        : "border-white/10 hover:border-white/25"
+                                    }`}
+                                  >
+                                    <img
+                                      src={getImageUrl(
+                                        image.url ?? "",
+                                        image.createdAt,
+                                      )}
+                                      alt={`Step ${image.stepNumber}`}
+                                      className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.01]"
+                                    />
+                                    {image.stepNumber === 0 && (
+                                      <span className="absolute left-2 top-2 app-badge rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 bg-black/60 border border-white/15 backdrop-blur">
+                                        ORIGINAL
+                                      </span>
+                                    )}
+                                    <span className="absolute right-2 bottom-2 app-badge rounded-full px-2 py-0.5 text-[10px] text-[color:var(--app-muted)] bg-black/60 border border-white/10 backdrop-blur">
+                                      {isSelected
+                                        ? `Selected step ${image.stepNumber}`
+                                        : `Step ${image.stepNumber}`}
+                                    </span>
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-[320px]">
+                                  <p className="text-left leading-relaxed break-words whitespace-pre-wrap">
+                                    {getTooltipText(image)}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </CarouselItem>
+                        );
+                      })}
+                    </CarouselContent>
+                    <CarouselPrevious className="left-2 z-10" />
+                    <CarouselNext className="right-2 z-10" />
+                  </Carousel>
                 )}
 
                 {isGenerating && (
