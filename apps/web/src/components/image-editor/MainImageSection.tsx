@@ -208,7 +208,7 @@ function HistoryBranchStrip({
         onPointerMove={handlePointerMove}
         onPointerUp={stopDragging}
         onPointerCancel={stopDragging}
-        className="h-[34vh] min-h-[160px] max-h-[280px] w-full max-w-full overflow-x-auto overflow-y-hidden pt-8 pb-2 select-none cursor-grab active:cursor-grabbing [touch-action:pan-y] sm:h-[42vh] sm:min-h-[220px] sm:max-h-none lg:h-[56vh] lg:min-h-[260px] lg:pt-10"
+        className="box-border h-[34vh] min-h-[160px] max-h-[280px] w-full max-w-full overflow-x-auto overflow-y-hidden pt-8 pb-2 select-none cursor-grab active:cursor-grabbing [touch-action:pan-y] sm:h-[42vh] sm:min-h-[220px] sm:max-h-none lg:h-[56vh] lg:min-h-[260px] lg:pt-10"
       >
         <div className="inline-flex h-full min-w-full items-stretch justify-end gap-2 lg:gap-3">
         {historyPathImages.map((image, index) => {
@@ -245,7 +245,7 @@ function HistoryBranchStrip({
                         src={getImageUrl(image.url ?? "", image.createdAt)}
                         alt={`Step ${image.stepNumber}`}
                         draggable={false}
-                        className="max-h-full max-w-full object-contain transition duration-300 group-hover:scale-[1.01]"
+                        className="max-h-full max-w-full object-contain"
                       />
                       {image.stepNumber === 0 && (
                         <span className="absolute left-2 top-2 app-badge rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 bg-black/60 border border-white/15 backdrop-blur">
