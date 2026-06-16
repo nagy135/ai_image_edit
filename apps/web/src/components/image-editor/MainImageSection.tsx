@@ -245,7 +245,7 @@ function HistoryBranchStrip({
                         src={getImageUrl(image.url ?? "", image.createdAt)}
                         alt={`Step ${image.stepNumber}`}
                         draggable={false}
-                        className="max-h-full max-w-full object-contain"
+                        className="h-full w-full object-contain p-1"
                       />
                       {image.stepNumber === 0 && (
                         <span className="absolute left-2 top-2 app-badge rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 bg-black/60 border border-white/15 backdrop-blur">
