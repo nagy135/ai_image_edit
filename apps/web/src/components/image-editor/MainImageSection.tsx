@@ -208,19 +208,19 @@ function HistoryBranchStrip({
         onPointerMove={handlePointerMove}
         onPointerUp={stopDragging}
         onPointerCancel={stopDragging}
-        className="box-border h-[34vh] min-h-[160px] max-h-[280px] w-full max-w-full overflow-x-auto overflow-y-hidden pt-8 pb-2 select-none cursor-grab active:cursor-grabbing [touch-action:pan-y] sm:h-[42vh] sm:min-h-[220px] sm:max-h-none lg:h-[56vh] lg:min-h-[260px] lg:pt-10"
+        className="w-full max-w-full overflow-x-auto overflow-y-hidden pt-8 pb-2 select-none cursor-grab active:cursor-grabbing [touch-action:pan-y] lg:pt-10"
       >
-        <div className="inline-flex h-full min-w-full items-stretch justify-end gap-2 lg:gap-3">
+        <div className="inline-flex min-w-full items-center justify-end gap-2 lg:gap-3">
         {historyPathImages.map((image, index) => {
           const isSelected = image._id === selectedHistoryId;
 
           return (
             <div
               key={image._id}
-              className="flex h-full shrink-0 items-stretch gap-2 lg:gap-3"
+              className="flex shrink-0 items-center gap-2 lg:gap-3"
             >
               {index > 0 && (
-                <div className="flex h-full w-5 shrink-0 items-center justify-center text-[color:var(--app-faint)]">
+                <div className="flex w-5 shrink-0 items-center justify-center text-[color:var(--app-faint)]">
                   <span className="h-px w-full bg-white/15" />
                 </div>
               )}
@@ -235,7 +235,7 @@ function HistoryBranchStrip({
                         if (controlsDisabled) return;
                         onSelectImage(image._id);
                       }}
-                      className={`group relative grid h-full w-[min(54vw,210px)] shrink-0 place-items-center rounded-xl border bg-black/20 overflow-hidden text-left transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed sm:w-[min(48vw,260px)] lg:w-[min(72vw,340px)] ${
+                      className={`group relative grid shrink-0 place-items-center rounded-xl border bg-black/20 p-1 text-left transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
                         isSelected
                           ? "border-teal-300/70 shadow-[0_0_0_2px_rgba(45,212,191,0.18)]"
                           : "border-white/10 hover:border-white/25"
@@ -245,7 +245,7 @@ function HistoryBranchStrip({
                         src={getImageUrl(image.url ?? "", image.createdAt)}
                         alt={`Step ${image.stepNumber}`}
                         draggable={false}
-                        className="h-full w-full object-contain p-1"
+                        className="block h-auto max-h-[52vh] max-w-[min(54vw,210px)] object-contain sm:max-w-[min(48vw,260px)] lg:max-h-[56vh] lg:max-w-[min(72vw,340px)]"
                       />
                       {image.stepNumber === 0 && (
                         <span className="absolute left-2 top-2 app-badge rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/90 bg-black/60 border border-white/15 backdrop-blur">
