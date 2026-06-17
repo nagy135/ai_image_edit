@@ -828,7 +828,6 @@ function ImageEditorApp() {
   const historyPathImages = getImageAncestorPath(images, selectedHistoryId);
   const handleSelectHistoryImage = (imageId: Id<"images">) => {
     setSelectedImageId(imageId);
-    setImageViewerMode("history");
   };
   const clearBatch = () => {
     setPendingPrompts([]);
