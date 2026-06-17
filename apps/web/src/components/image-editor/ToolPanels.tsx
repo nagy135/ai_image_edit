@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import type { Id } from "../../types";
+import { IMAGE_MODELS } from "../../modelConfig";
 
 export type ReferenceTool = "dress_me" | "change_hair";
 
@@ -227,12 +228,12 @@ function ModelSelect({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="gemini-2.5-flash-image">
-            Gemini 2.5 Flash
-          </SelectItem>
-          <SelectItem value="gemini-3-pro-image-preview">
-            Gemini 3 Pro Preview
-          </SelectItem>
+          {IMAGE_MODELS.map((model) => (
+            <SelectItem key={model.id} value={model.id}>
+              {model.label} ({model.creditCost}{" "}
+              {model.creditCost === 1 ? "credit" : "credits"})
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
     </div>

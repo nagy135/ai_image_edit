@@ -70,6 +70,11 @@ import {
 import { APP_SHELL_STYLE, EDIT_TYPE_ICON_MAP, PROMPTS } from "./constants";
 import type { AdminChainWithUrl, Id } from "./types";
 import { useImageViewerStore } from "./stores/useImageViewerStore";
+import {
+  DEFAULT_IMAGE_MODEL_ID,
+  IMAGE_MODELS,
+  getImageModelCreditCost,
+} from "./modelConfig";
 
 function App() {
   const { isLoaded, isSignedIn: clerkSignedIn } = useUser();
@@ -112,7 +117,6 @@ function ImageEditorApp() {
     clerkUserId ? { clerkUserId } : "skip",
   );
   const credits = currentUser?.credits ?? 0;
-  const hasCredits = credits > 0;
   const isAdmin = (currentUser?.isAdmin ?? false) === true;
 
   const adminChains = useQuery(
@@ -126,7 +130,11 @@ function ImageEditorApp() {
   );
   const [zoomLevel, setZoomLevel] = useState(100);
   const [brightnessLevel, setBrightnessLevel] = useState(100);
-  const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash-image");
+  const [selectedModel, setSelectedModel] = useState<string>(
+    DEFAULT_IMAGE_MODEL_ID,
+  );
+  const selectedModelCreditCost = getImageModelCreditCost(selectedModel);
+  const hasCredits = credits >= selectedModelCreditCost;
 
   // Image chain management
   const {
@@ -880,7 +888,7 @@ function ImageEditorApp() {
             <span
               className={`app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs ${hasCredits ? "text-[color:var(--app-muted)]" : "text-red-400"}`}
             >
-              Credits: {credits}
+              Credits: {credits} / cost {selectedModelCreditCost}
             </span>
             {isGenerating && (
               <span className="hidden sm:inline app-badge rounded-full px-2 py-0.5 lg:px-3 lg:py-1 text-[10px] lg:text-xs text-[color:var(--app-muted)]">
@@ -1190,12 +1198,12 @@ function ImageEditorApp() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="gemini-2.5-flash-image">
-                        Gemini 2.5 Flash
-                      </SelectItem>
-                      <SelectItem value="gemini-3-pro-image-preview">
-                        Gemini 3 Pro Preview
-                      </SelectItem>
+                      {IMAGE_MODELS.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {model.label} ({model.creditCost}{" "}
+                          {model.creditCost === 1 ? "credit" : "credits"})
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

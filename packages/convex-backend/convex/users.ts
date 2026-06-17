@@ -68,8 +68,11 @@ export const getCurrentUser = query({
 export const decrementCredits = internalMutation({
   args: {
     clerkUserId: v.string(),
+    amount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const amount = args.amount ?? 1;
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_user_id", (q) =>
@@ -81,14 +84,18 @@ export const decrementCredits = internalMutation({
       throw new Error("User not found");
     }
 
-    if (user.credits <= 0) {
+    if (amount < 1) {
+      throw new Error("Credit amount must be at least 1");
+    }
+
+    if (user.credits < amount) {
       throw new Error("Insufficient credits for this operation");
     }
 
     await ctx.db.patch(user._id, {
-      credits: user.credits - 1,
+      credits: user.credits - amount,
     });
 
-    return user.credits - 1;
+    return user.credits - amount;
   },
 });

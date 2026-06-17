@@ -13,6 +13,10 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { OpenRouter } from "@openrouter/sdk";
 import type { Doc } from "./_generated/dataModel";
+import {
+  getImageModelCreditCost,
+  getOpenRouterImageModel,
+} from "./modelConfig";
 
 const blobToDataUrl = async (blob: Blob): Promise<string> => {
   const mimeType = blob.type || "application/octet-stream";
@@ -176,6 +180,7 @@ export const generateNextStep = action({
     // Decrement credits once we know the request is valid.
     await ctx.runMutation(internal.users.decrementCredits, {
       clerkUserId: args.clerkUserId,
+      amount: getImageModelCreditCost(args.model),
     });
 
     const parentImage = requestedSource;
@@ -273,15 +278,9 @@ export const generateNextStep = action({
       text: prompt,
     });
 
-    // Call OpenRouter
-    const modelToUse =
-      args.model === "gemini-3-pro-image-preview"
-        ? "google/gemini-3-pro-image-preview"
-        : "google/gemini-2.5-flash-image";
-
     const result = await openRouter.chat.send({
       chatGenerationParams: {
-        model: modelToUse,
+        model: getOpenRouterImageModel(args.model),
         messages: [
           {
             role: "user",
